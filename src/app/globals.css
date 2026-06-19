@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #FAFAFA;
+    --foreground: #1A1A1A;
+    --card: #FFFFFF;
+    --card-foreground: #1A1A1A;
+    --border: #E8E4DE;
+    --input: #E8E4DE;
+    --primary: #2D2D2D;
+    --primary-foreground: #F5F5F5;
+    --secondary: #F5F5F5;
+    --secondary-foreground: #1A1A1A;
+    --muted: #F5F5F5;
+    --muted-foreground: #6B6B6B;
+    --accent: #F8F6F2;
+    --accent-foreground: #1A1A1A;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+    --ring: #2D2D2D;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: #0A0A0A;
+    --foreground: #F5F5F5;
+    --card: #111111;
+    --card-foreground: #F5F5F5;
+    --border: #222222;
+    --input: #222222;
+    --primary: #E8E4DE;
+    --primary-foreground: #1A1A1A;
+    --secondary: #1A1A1A;
+    --secondary-foreground: #F5F5F5;
+    --muted: #1A1A1A;
+    --muted-foreground: #888888;
+    --accent: #1A1A1A;
+    --accent-foreground: #F5F5F5;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+    --ring: #E8E4DE;
+  }
+
+  * {
+    border-color: var(--border);
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .badge-active {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: #f0fdf4;
+    color: #15803d;
+  }
+
+  .dark .badge-active {
+    background-color: #052e16;
+    color: #86efac;
+  }
+
+  .badge-closed {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .badge-overdue {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background-color: #fef2f2;
+    color: #b91c1c;
+  }
+}

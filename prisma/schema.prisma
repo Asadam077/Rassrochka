@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  plan          String         @default("FREE")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  users         User[]
+  investors     Investor[]
+  clients       Client[]
+  payments      Payment[]
+  notifications Notification[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+  INVESTOR
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          Role           @default(EMPLOYEE)
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  investor      Investor?
+  clients       Client[]       @relation("EmployeeClients")
+  notifications Notification[]
+
+  @@index([companyId])
+}
+
+model Investor {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  totalCapital Float    @default(0)
+  activeCapital Float   @default(0)
+  freeCapital  Float    @default(0)
+  totalProfit  Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clients      Client[]
+
+  @@index([companyId])
+}
+
+enum ClientStatus {
+  ACTIVE
+  CLOSED
+  OVERDUE
+}
+
+model Client {
+  id                String       @id @default(cuid())
+  companyId         String
+  company           Company      @relation(fields: [companyId], references: [id])
+  investorId        String?
+  investor          Investor?    @relation(fields: [investorId], references: [id])
+  employeeId        String?
+  employee          User?        @relation("EmployeeClients", fields: [employeeId], references: [id])
+  fullName          String
+  phone             String
+  productName       String
+  costPrice         Float
+  salePrice         Float
+  downPayment       Float        @default(0)
+  installmentMonths Int
+  monthlyPayment    Float
+  totalProfit       Float
+  profitPercent     Float
+  remainingDebt     Float
+  status            ClientStatus @default(ACTIVE)
+  startDate         DateTime     @default(now())
+  nextPaymentDate   DateTime
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  payments          Payment[]
+  notifications     Notification[]
+
+  @@index([companyId])
+  @@index([investorId])
+  @@index([status])
+}
+
+enum PaymentType {
+  PARTIAL
+  FULL
+  MONTHLY
+}
+
+model Payment {
+  id          String      @id @default(cuid())
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id])
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id])
+  amount      Float
+  type        PaymentType @default(MONTHLY)
+  paymentDate DateTime    @default(now())
+  notes       String?
+  createdAt   DateTime    @default(now())
+
+  @@index([clientId])
+  @@index([companyId])
+}
+
+enum NotificationType {
+  PAYMENT_DUE
+  OVERDUE
+  NEW_CLIENT
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  companyId String
+  company   Company          @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?            @relation(fields: [userId], references: [id])
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  clientId  String?
+  client    Client?          @relation(fields: [clientId], references: [id])
+  createdAt DateTime         @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+}
