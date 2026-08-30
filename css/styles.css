@@ -382,8 +382,6 @@ body{
   -webkit-tap-highlight-color:transparent;
 }
 .btn:active{ transform:scale(0.98); }
-.btn--navy{ background:var(--navy); color:var(--white); }
-.btn--navy:hover{ background:var(--navy-2); }
 .btn--gold{
   background:linear-gradient(135deg,var(--gold),#C08F49);
   color:var(--navy);

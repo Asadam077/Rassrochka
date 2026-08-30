@@ -24,8 +24,6 @@
     months: 3
   };
 
-  var activeDownPercent = 0; // which quick chip is active, -1 = custom
-
   /* ---------------- helpers ---------------- */
 
   function formatMoney(n) {
@@ -322,7 +320,6 @@
   /* ---------------- input wiring ---------------- */
 
   function setActiveChip(percent) {
-    activeDownPercent = percent;
     var chips = els.downQuick.querySelectorAll('.chip[data-percent]');
     chips.forEach(function (c) {
       var p = parseInt(c.getAttribute('data-percent'), 10);
@@ -348,7 +345,6 @@
     if (n > state.price) n = state.price;
     state.down = n;
     this.value = formatInputDisplay(n);
-    activeDownPercent = -1;
     setActiveChip(-1);
     render();
   });
