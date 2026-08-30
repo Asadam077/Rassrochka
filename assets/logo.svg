@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 84" fill="none" role="img" aria-label="AS PAY">
+  <!-- Placeholder AS PAY wordmark. Replace this file with the official logo (keep the filename
+       "logo.svg" and it will update everywhere automatically). Geometric mark: two overlapping
+       squares forming an 8-point star, in the brand gold. -->
+  <g transform="translate(2,2)">
+    <rect x="18" y="18" width="44" height="44" fill="none" stroke="#D2A15C" stroke-width="2.5"/>
+    <rect x="18" y="18" width="44" height="44" fill="none" stroke="#D2A15C" stroke-width="2.5" transform="rotate(45 40 40)"/>
+  </g>
+  <text x="92" y="38" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#17243A">AS</text>
+  <text x="150" y="38" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#D2A15C">PAY</text>
+  <text x="92" y="60" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="12.5" font-weight="500" letter-spacing="2.5" fill="#5B6472">TRADE INSTALLMENTS</text>
+</svg>

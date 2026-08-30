@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AS PAY — Калькулятор рассрочки</title>
+<meta name="description" content="AS PAY — рассрочка по нормам Шариата. Фиксированная торговая наценка, прозрачные условия, без сложных процентов.">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="bg-watermark" aria-hidden="true"></div>
+
+<div class="page">
+
+  <header class="brand">
+    <img class="brand__logo" src="assets/logo.svg" alt="AS PAY">
+    <h1 class="brand__title">Рассрочка по нормам Шариата</h1>
+    <p class="brand__subtitle">Фиксированная торговая наценка · Прозрачные условия</p>
+  </header>
+
+  <main class="card" id="calculator">
+
+    <!-- Стоимость товара -->
+    <section class="field">
+      <label class="field__label" for="priceInput">Стоимость товара</label>
+      <div class="input-money">
+        <input
+          id="priceInput"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="0"
+          aria-describedby="priceSuffix">
+        <span class="input-money__suffix" id="priceSuffix">₽</span>
+      </div>
+    </section>
+
+    <!-- Первоначальный взнос -->
+    <section class="field">
+      <div class="field__label-row">
+        <label class="field__label" for="downInput">Первоначальный взнос</label>
+        <span class="field__hint" id="downPercentHint">0 ₽ · 0%</span>
+      </div>
+      <div class="input-money">
+        <input
+          id="downInput"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="0"
+          aria-describedby="downSuffix">
+        <span class="input-money__suffix" id="downSuffix">₽</span>
+      </div>
+      <div class="quick-row" id="downQuick">
+        <button type="button" class="chip" data-percent="0">Без взноса</button>
+        <button type="button" class="chip" data-percent="20">20%</button>
+        <button type="button" class="chip" data-percent="30">30%</button>
+        <button type="button" class="chip" data-percent="40">40%</button>
+        <button type="button" class="chip chip--outline" data-custom="1">Своя сумма</button>
+      </div>
+    </section>
+
+    <!-- Срок рассрочки -->
+    <section class="field">
+      <div class="field__label-row">
+        <label class="field__label">Срок рассрочки</label>
+        <span class="field__hint" id="markupHint">Торговая наценка: 15%</span>
+      </div>
+      <div class="months-grid" id="monthsGrid" role="group" aria-label="Срок рассрочки, месяцев"></div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Стандартный результат -->
+    <section id="resultStandard" class="result">
+      <div class="result__hero">
+        <span class="result__hero-label">Ваш ежемесячный платёж</span>
+        <div class="result__hero-value" id="monthlyPaymentValue">0 ₽</div>
+        <span class="result__hero-caption">в месяц</span>
+        <div class="result__last-note" id="lastPaymentNote" hidden></div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-item">
+          <span class="summary-item__label">Стоимость товара</span>
+          <span class="summary-item__value" id="sumPrice">0 ₽</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">Первоначальный взнос</span>
+          <span class="summary-item__value" id="sumDown">0 ₽ · 0%</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">Срок рассрочки</span>
+          <span class="summary-item__value" id="sumMonths">3 месяца</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">Торговая наценка</span>
+          <span class="summary-item__value" id="sumMarkupPercent">15%</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">Сумма торговой наценки</span>
+          <span class="summary-item__value" id="sumMarkupAmount">0 ₽</span>
+        </div>
+        <div class="summary-item summary-item--total">
+          <span class="summary-item__label">Итоговая стоимость</span>
+          <span class="summary-item__value" id="sumTotal">0 ₽</span>
+        </div>
+      </div>
+
+      <!-- График платежей -->
+      <div class="accordion">
+        <button type="button" class="accordion__toggle" id="scheduleToggle" aria-expanded="false" aria-controls="schedulePanel">
+          <span>Посмотреть график платежей</span>
+          <svg class="accordion__chevron" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="accordion__panel" id="schedulePanel" hidden>
+          <ol class="schedule-list" id="scheduleList"></ol>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn--ghost btn--copy" id="copyButton">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 10.5H2.5a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1H10a1 1 0 0 1 1 1V3" stroke="currentColor" stroke-width="1.3"/></svg>
+        <span id="copyButtonLabel">Скопировать расчёт</span>
+      </button>
+    </section>
+
+    <!-- Индивидуальные условия -->
+    <section id="resultCustom" class="custom-offer" hidden>
+      <div class="custom-offer__icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="6" y="6" width="16" height="16" fill="none" stroke="#D2A15C" stroke-width="1.6"/><rect x="6" y="6" width="16" height="16" fill="none" stroke="#D2A15C" stroke-width="1.6" transform="rotate(45 14 14)"/></svg>
+      </div>
+      <h2 class="custom-offer__title">Индивидуальные условия</h2>
+      <p class="custom-offer__text">При первоначальном взносе более 40% для вас доступны индивидуальные условия AS PAY. Получите персональный расчёт на более выгодных условиях.</p>
+
+      <div class="custom-offer__summary">
+        <div class="summary-item">
+          <span class="summary-item__label">Стоимость товара</span>
+          <span class="summary-item__value" id="customPrice">0 ₽</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">Первоначальный взнос</span>
+          <span class="summary-item__value" id="customDown">0 ₽ · 0%</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-item__label">Срок рассрочки</span>
+          <span class="summary-item__value" id="customMonths">3 месяца</span>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn--gold" id="customOfferButton">Получить индивидуальный расчёт</button>
+      <p class="custom-offer__note">Оставьте заявку для получения индивидуального расчёта AS PAY.</p>
+    </section>
+
+    <section id="emptyState" class="empty-state" hidden>
+      <p>Введите стоимость товара, чтобы увидеть расчёт рассрочки</p>
+    </section>
+
+    <div class="benefits">
+      <div class="benefits__item"><span class="benefits__check">✓</span> Фиксированная стоимость</div>
+      <div class="benefits__item"><span class="benefits__check">✓</span> Прозрачные условия</div>
+      <div class="benefits__item"><span class="benefits__check">✓</span> От 3 до 12 месяцев</div>
+      <div class="benefits__item"><span class="benefits__check">✓</span> Без скрытых платежей</div>
+    </div>
+
+  </main>
+
+  <footer class="page-footer">
+    <p>AS PAY · Итоговая стоимость фиксируется при оформлении рассрочки</p>
+  </footer>
+
+</div>
+
+<!-- Модальное окно заявки на индивидуальный расчёт -->
+<div class="modal-overlay" id="leadModalOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="leadModalTitle">
+    <button type="button" class="modal__close" id="leadModalClose" aria-label="Закрыть">✕</button>
+    <div id="leadModalForm">
+      <h3 class="modal__title" id="leadModalTitle">Получить индивидуальный расчёт</h3>
+      <p class="modal__text">Оставьте контакты — менеджер AS PAY свяжется с вами и подготовит персональные условия рассрочки.</p>
+      <label class="modal__label" for="leadName">Имя</label>
+      <input class="modal__input" id="leadName" type="text" autocomplete="name" placeholder="Ваше имя">
+      <label class="modal__label" for="leadPhone">Телефон</label>
+      <input class="modal__input" id="leadPhone" type="tel" autocomplete="tel" placeholder="+7 (___) ___-__-__">
+      <button type="button" class="btn btn--navy" id="leadSubmit">Отправить заявку</button>
+    </div>
+    <div id="leadModalSuccess" hidden>
+      <h3 class="modal__title">Заявка принята</h3>
+      <p class="modal__text">Спасибо! Менеджер AS PAY свяжется с вами в ближайшее время для расчёта индивидуальных условий.</p>
+      <button type="button" class="btn btn--navy" id="leadModalDone">Готово</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
