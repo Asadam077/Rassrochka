@@ -15,8 +15,8 @@
   var CUSTOM_TERMS_THRESHOLD = 40; // percent of price — above this, individual conditions apply
 
   // Company WhatsApp number for the individual-conditions CTA.
-  // Digits only, with country code, no "+", spaces or dashes (e.g. "79991234567").
-  var WHATSAPP_NUMBER = '70000000000';
+  // Digits only, with country code, no "+", spaces or dashes.
+  var WHATSAPP_NUMBER = '79290930303';
 
   var state = {
     price: 0,
