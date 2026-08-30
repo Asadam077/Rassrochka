@@ -178,6 +178,24 @@ body{
   border-color:var(--gold);
   color:var(--navy);
 }
+.chip:disabled{
+  cursor:not-allowed;
+  pointer-events:none;
+  opacity:0.4;
+  background:var(--white);
+  border-color:var(--gray);
+  color:var(--text-faint);
+  transform:none;
+}
+
+.field__note{
+  margin:10px 2px 0;
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--text-muted);
+}
+.field__note--positive{ color:var(--gold); }
+.field__note + .field__note{ margin-top:4px; }
 
 /* ============ Months grid ============ */
 .months-grid{

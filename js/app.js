@@ -181,6 +181,9 @@
     downInput: document.getElementById('downInput'),
     downPercentHint: document.getElementById('downPercentHint'),
     downQuick: document.getElementById('downQuick'),
+    downNoteMin: document.getElementById('downNoteMin'),
+    downNoteFree: document.getElementById('downNoteFree'),
+    noDownChip: document.querySelector('#downQuick .chip[data-percent="0"]'),
     monthsGrid: document.getElementById('monthsGrid'),
     markupHint: document.getElementById('markupHint'),
 
@@ -248,6 +251,11 @@
 
     var downPct = r.price > 0 ? Math.round(r.downPercent) : 0;
     els.downPercentHint.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
+
+    var zeroDownAllowed = r.price > 0 && r.price <= NO_DOWN_MAX_PRICE;
+    els.downNoteMin.hidden = r.price <= 0;
+    els.downNoteFree.hidden = !zeroDownAllowed;
+    els.noDownChip.disabled = r.price > NO_DOWN_MAX_PRICE;
 
     // Reset all result sections, then reveal exactly the one that applies.
     els.emptyState.hidden = true;
