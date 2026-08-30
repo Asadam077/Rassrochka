@@ -30,21 +30,7 @@ body{
   overflow-x:hidden;
 }
 
-/* subtle geometric watermark, ~3% opacity */
-.bg-watermark{
-  position:fixed;
-  inset:0;
-  z-index:0;
-  pointer-events:none;
-  background-image:url('../assets/pattern.svg');
-  background-repeat:repeat;
-  background-size:200px 200px;
-  opacity:0.035;
-}
-
 .page{
-  position:relative;
-  z-index:1;
   max-width:560px;
   margin:0 auto;
   padding:28px 16px 48px;

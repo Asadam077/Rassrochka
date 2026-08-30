@@ -33,7 +33,6 @@ css/styles.css       — вся стилизация (дизайн-токены 
 js/app.js            — вся логика расчёта, валидации и UI
 assets/logo.svg      — вордмарк AS PAY (placeholder, см. ниже)
 assets/favicon.svg   — иконка вкладки
-assets/pattern.svg   — геометрический тайл для фонового watermark
 ```
 
 ## Логотип
