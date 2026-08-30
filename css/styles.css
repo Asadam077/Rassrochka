@@ -42,9 +42,12 @@ body{
   margin-bottom:22px;
 }
 .brand__logo{
-  height:40px;
+  height:64px;
   width:auto;
-  margin-bottom:14px;
+  margin-bottom:18px;
+}
+@media (min-width:600px){
+  .brand__logo{ height:84px; }
 }
 .brand__title{
   margin:0 0 6px;
