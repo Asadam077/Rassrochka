@@ -12,7 +12,7 @@
   var MAX_MONTHS = 12;
   var MIN_DOWN_PERCENT = 25;     // minimum down payment, % of retail price (when a down payment is made)
   var NO_DOWN_MAX_PRICE = 50000; // 0 ₽ down payment is only allowed at or below this retail price
-  var CUSTOM_TERMS_THRESHOLD = 40; // percent of price — above this, individual conditions apply
+  var CUSTOM_TERMS_THRESHOLD = 40; // percent of price — at or above this, individual conditions apply
 
   // Company WhatsApp number for the individual-conditions CTA.
   // Digits only, with country code, no "+", spaces or dashes.
@@ -116,8 +116,8 @@
   // 6. zero down is only allowed at retail price <= 50 000 ₽
   // 7. a non-zero down payment must be at least 25% of retail price
   // 8. down payment as % of retail price
-  // 9. >40% of retail price -> individual conditions (WhatsApp)
-  // 10. 0/25%..40% -> standard calculation
+  // 9. 40% or more of retail price -> individual conditions (WhatsApp)
+  // 10. 0% (price <= 50 000 ₽) or 25%..39.99% -> standard calculation
   // 11. monthly payment  12. round displayed monthly payment up to nearest 100 ₽
   function calculate() {
     var price = state.price;
@@ -158,7 +158,7 @@
       return result;
     }
 
-    if (down * 100 > price * CUSTOM_TERMS_THRESHOLD) {
+    if (down * 100 >= price * CUSTOM_TERMS_THRESHOLD) {
       result.isCustom = true;
       return result;
     }
