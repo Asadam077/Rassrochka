@@ -7,10 +7,16 @@
      No compound interest, no interest-on-balance, no accrual.
      ========================================================== */
 
-  var MARKUP_PER_MONTH = 5;   // percent per month
+  var MARKUP_PER_MONTH = 5;      // percent per month
   var MIN_MONTHS = 3;
   var MAX_MONTHS = 12;
-  var CUSTOM_TERMS_THRESHOLD = 40; // percent of price
+  var MIN_DOWN_PERCENT = 25;     // minimum down payment, % of retail price (when a down payment is made)
+  var NO_DOWN_MAX_PRICE = 50000; // 0 ₽ down payment is only allowed at or below this retail price
+  var CUSTOM_TERMS_THRESHOLD = 40; // percent of price — above this, individual conditions apply
+
+  // Company WhatsApp number for the individual-conditions CTA.
+  // Digits only, with country code, no "+", spaces or dashes (e.g. "79991234567").
+  var WHATSAPP_NUMBER = '70000000000';
 
   var state = {
     price: 0,
@@ -104,17 +110,24 @@
   }
 
   /* ---------------- core calculation ---------------- */
-
+  // Follows this order strictly:
+  // 1. retail price  2. term (months)  3. trade markup (5% × months)
+  // 4. total cost with markup  5. zero-down-payment mode?
+  // 6. zero down is only allowed at retail price <= 50 000 ₽
+  // 7. a non-zero down payment must be at least 25% of retail price
+  // 8. down payment as % of retail price
+  // 9. >40% of retail price -> individual conditions (WhatsApp)
+  // 10. 0/25%..40% -> standard calculation
+  // 11. monthly payment  12. round displayed monthly payment up to nearest 100 ₽
   function calculate() {
     var price = state.price;
     var down = Math.min(state.down, price);
     var months = state.months;
-
     var downPercent = price > 0 ? (down / price) * 100 : 0;
+
     var markupPercent = months * MARKUP_PER_MONTH;
     var markupAmount = Math.round(price * (markupPercent / 100));
     var totalCost = price + markupAmount;
-    var isCustom = price > 0 && downPercent > CUSTOM_TERMS_THRESHOLD;
 
     var result = {
       price: price,
@@ -124,19 +137,39 @@
       markupPercent: markupPercent,
       markupAmount: markupAmount,
       totalCost: totalCost,
-      isCustom: isCustom,
-      isEmpty: price <= 0
+      isEmpty: price <= 0,
+      isNotice: false,
+      noticeText: '',
+      isCustom: false
     };
 
-    if (!isCustom && !result.isEmpty) {
-      var remaining = totalCost - down;
-      var schedule = buildSchedule(remaining, months);
-      result.remaining = remaining;
-      result.schedule = schedule;
-      result.monthlyPayment = schedule.regular;
-      result.lastPayment = schedule.last;
-      result.hasDifferentLast = schedule.last !== schedule.regular;
+    if (result.isEmpty) return result;
+
+    if (down === 0) {
+      if (price > NO_DOWN_MAX_PRICE) {
+        result.isNotice = true;
+        result.noticeText = 'Для товаров стоимостью свыше ' + formatMoney(NO_DOWN_MAX_PRICE) + ' необходим первоначальный взнос.';
+        return result;
+      }
+    } else if (down * 100 < price * MIN_DOWN_PERCENT) {
+      var minDown = Math.ceil(price * MIN_DOWN_PERCENT / 100);
+      result.isNotice = true;
+      result.noticeText = 'Минимальный первоначальный взнос — ' + formatMoney(minDown) + '.';
+      return result;
     }
+
+    if (down * 100 > price * CUSTOM_TERMS_THRESHOLD) {
+      result.isCustom = true;
+      return result;
+    }
+
+    var remaining = totalCost - down;
+    var schedule = buildSchedule(remaining, months);
+    result.remaining = remaining;
+    result.schedule = schedule;
+    result.monthlyPayment = schedule.regular;
+    result.lastPayment = schedule.last;
+    result.hasDifferentLast = schedule.last !== schedule.regular;
 
     return result;
   }
@@ -153,6 +186,8 @@
 
     resultStandard: document.getElementById('resultStandard'),
     resultCustom: document.getElementById('resultCustom'),
+    resultNotice: document.getElementById('resultNotice'),
+    noticeText: document.getElementById('noticeText'),
     emptyState: document.getElementById('emptyState'),
 
     monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
@@ -162,8 +197,8 @@
     sumDown: document.getElementById('sumDown'),
     sumMonths: document.getElementById('sumMonths'),
     sumMarkupPercent: document.getElementById('sumMarkupPercent'),
-    sumMarkupAmount: document.getElementById('sumMarkupAmount'),
     sumTotal: document.getElementById('sumTotal'),
+    sumRemaining: document.getElementById('sumRemaining'),
 
     scheduleToggle: document.getElementById('scheduleToggle'),
     schedulePanel: document.getElementById('schedulePanel'),
@@ -176,15 +211,6 @@
     customDown: document.getElementById('customDown'),
     customMonths: document.getElementById('customMonths'),
     customOfferButton: document.getElementById('customOfferButton'),
-
-    leadModalOverlay: document.getElementById('leadModalOverlay'),
-    leadModalClose: document.getElementById('leadModalClose'),
-    leadModalForm: document.getElementById('leadModalForm'),
-    leadModalSuccess: document.getElementById('leadModalSuccess'),
-    leadModalDone: document.getElementById('leadModalDone'),
-    leadName: document.getElementById('leadName'),
-    leadPhone: document.getElementById('leadPhone'),
-    leadSubmit: document.getElementById('leadSubmit'),
 
     toast: document.getElementById('toast')
   };
@@ -223,27 +249,30 @@
     var downPct = r.price > 0 ? Math.round(r.downPercent) : 0;
     els.downPercentHint.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
 
+    // Reset all result sections, then reveal exactly the one that applies.
+    els.emptyState.hidden = true;
+    els.resultNotice.hidden = true;
+    els.resultCustom.hidden = true;
+    els.resultStandard.hidden = true;
+
     if (r.isEmpty) {
-      els.resultStandard.hidden = true;
-      els.resultCustom.hidden = true;
       els.emptyState.hidden = false;
       return;
     }
 
-    els.emptyState.hidden = true;
-
-    if (r.isCustom) {
-      els.resultStandard.hidden = true;
-      els.resultCustom.hidden = false;
-
-      els.customPrice.textContent = formatMoney(r.price);
-      els.customDown.textContent = formatMoney(r.down) + ' · ' + Math.round(r.downPercent) + '%';
-      els.customMonths.textContent = formatMonthsWord(r.months);
+    if (r.isNotice) {
+      els.noticeText.textContent = r.noticeText;
+      els.resultNotice.hidden = false;
       return;
     }
 
-    els.resultCustom.hidden = true;
-    els.resultStandard.hidden = false;
+    if (r.isCustom) {
+      els.customPrice.textContent = formatMoney(r.price);
+      els.customDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
+      els.customMonths.textContent = formatMonthsWord(r.months);
+      els.resultCustom.hidden = false;
+      return;
+    }
 
     els.monthlyPaymentValue.textContent = formatMoney(r.monthlyPayment);
 
@@ -258,10 +287,11 @@
     els.sumDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
     els.sumMonths.textContent = formatMonthsWord(r.months);
     els.sumMarkupPercent.textContent = r.markupPercent + '%';
-    els.sumMarkupAmount.textContent = formatMoney(r.markupAmount);
     els.sumTotal.textContent = formatMoney(r.totalCost);
+    els.sumRemaining.textContent = formatMoney(r.remaining);
 
     renderSchedule(r);
+    els.resultStandard.hidden = false;
   }
 
   function renderSchedule(r) {
@@ -380,7 +410,7 @@
   }
 
   els.copyButton.addEventListener('click', function () {
-    if (!lastResult || lastResult.isEmpty || lastResult.isCustom) return;
+    if (!lastResult || lastResult.isEmpty || lastResult.isNotice || lastResult.isCustom) return;
     var text = buildCopyText(lastResult);
 
     function done(ok) {
@@ -415,31 +445,24 @@
     }
   });
 
-  /* ---------------- lead modal (individual conditions) ---------------- */
+  /* ---------------- individual conditions -> WhatsApp ---------------- */
 
-  function openModal() {
-    els.leadModalForm.hidden = false;
-    els.leadModalSuccess.hidden = true;
-    els.leadName.value = '';
-    els.leadPhone.value = '';
-    els.leadModalOverlay.hidden = false;
+  function buildWhatsAppUrl(r) {
+    var lines = [
+      'Здравствуйте! Хочу узнать индивидуальные условия AS PAY.',
+      'Стоимость товара: ' + formatMoney(r.price),
+      'Первоначальный взнос: ' + formatMoney(r.down),
+      'Размер взноса: ' + Math.round(r.downPercent) + '%',
+      'Срок рассрочки: ' + formatMonthsWord(r.months)
+    ];
+    var text = lines.join('\n');
+    return 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text);
   }
-  function closeModal() {
-    els.leadModalOverlay.hidden = true;
-  }
 
-  els.customOfferButton.addEventListener('click', openModal);
-  els.leadModalClose.addEventListener('click', closeModal);
-  els.leadModalOverlay.addEventListener('click', function (e) {
-    if (e.target === els.leadModalOverlay) closeModal();
-  });
-  els.leadModalDone.addEventListener('click', closeModal);
-
-  els.leadSubmit.addEventListener('click', function () {
-    // NOTE: no backend is wired up here — this is a UI placeholder.
-    // Connect this to your CRM / Telegram bot / API endpoint to receive real leads.
-    els.leadModalForm.hidden = true;
-    els.leadModalSuccess.hidden = false;
+  els.customOfferButton.addEventListener('click', function () {
+    if (!lastResult || !lastResult.isCustom) return;
+    var win = window.open(buildWhatsAppUrl(lastResult), '_blank');
+    if (win) win.opener = null;
   });
 
   /* ---------------- init ---------------- */
