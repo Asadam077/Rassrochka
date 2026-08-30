@@ -50,11 +50,12 @@ body{
   .brand__logo{ height:84px; }
 }
 .brand__title{
-  margin:0 0 6px;
-  font-size:17px;
-  font-weight:700;
+  margin:0 0 8px;
+  font-size:13px;
+  font-weight:600;
   color:var(--navy);
-  letter-spacing:0.1px;
+  letter-spacing:2.5px;
+  text-transform:uppercase;
 }
 .brand__subtitle{
   margin:0;
@@ -237,7 +238,7 @@ body{
 }
 .result__hero-value{
   font-size:44px;
-  font-weight:800;
+  font-weight:700;
   color:var(--navy);
   letter-spacing:-0.5px;
   line-height:1.1;
@@ -411,7 +412,7 @@ body{
 }
 .custom-offer__title{
   font-size:21px;
-  font-weight:800;
+  font-weight:600;
   color:var(--navy);
   margin:0 0 10px;
 }

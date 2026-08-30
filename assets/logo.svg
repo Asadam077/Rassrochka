@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 84" fill="none" role="img" aria-label="AS PAY">
   <!-- Placeholder AS PAY wordmark. Replace this file with the official logo (keep the filename
        "logo.svg" and it will update everywhere automatically). -->
-  <text x="0" y="38" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#17243A">AS</text>
-  <text x="58" y="38" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="34" font-weight="800" letter-spacing="1" fill="#D2A15C">PAY</text>
+  <text x="0" y="38" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="1" fill="#17243A">AS</text>
+  <text x="58" y="38" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="34" font-weight="700" letter-spacing="1" fill="#D2A15C">PAY</text>
   <text x="0" y="60" font-family="'Manrope','Segoe UI',Arial,sans-serif" font-size="12.5" font-weight="500" letter-spacing="2.5" fill="#5B6472">TRADE INSTALLMENTS</text>
 </svg>
