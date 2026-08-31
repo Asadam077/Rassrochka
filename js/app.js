@@ -66,45 +66,46 @@
 
   /* ---------------- schedule builder ---------------- */
   // Builds a payment schedule for `remaining` rubles over `months`
-  // installments. All installments equal, rounded UP to nearest 100,
-  // except the last one which absorbs the rounding difference so the
-  // sum always equals `remaining` exactly. Falls back to a safe
-  // distribution when the amount is too small for 100-ruble rounding.
+  // installments. The headline monthly payment is `remaining/months`
+  // rounded UP to the nearest 100 — same figure as before. Paying that
+  // amount every month would overshoot `remaining` by a small surplus;
+  // instead of dumping that whole surplus on one payment, it's spread
+  // evenly across the schedule in 100-ruble steps (so most months stay
+  // a clean round number and no single payment sticks out), with any
+  // final sub-100 correction landing on the last payment so the sum is
+  // exact to the ruble. Falls back to a plain even split when the
+  // amount is too small for 100-ruble rounding to work without a
+  // negative payment.
   function buildSchedule(remaining, months) {
     remaining = Math.round(remaining);
     if (months <= 0) return { regular: 0, last: remaining, payments: [remaining] };
 
     var exact = remaining / months;
     var regular = Math.ceil(exact / 100) * 100;
-    var last = remaining - regular * (months - 1);
-
-    if (last < 0) {
-      // Fallback 1: round down to nearest 100
-      regular = Math.floor(exact / 100) * 100;
-      last = remaining - regular * (months - 1);
-    }
-
-    if (last < 0 || regular <= 0) {
-      // Fallback 2: whole-ruble even split, no artificial rounding
-      regular = Math.round(exact);
-      last = remaining - regular * (months - 1);
-      var guard = 0;
-      while (last < 0 && regular > 0 && guard < 100000) {
-        regular -= 1;
-        last = remaining - regular * (months - 1);
-        guard++;
-      }
-      if (regular <= 0) {
-        // Degenerate case (e.g. remaining is 0): everything in the last payment
-        regular = 0;
-        last = remaining;
-      }
-    }
+    var surplus = regular * months - remaining; // >= 0: overpayment if every month paid `regular`
 
     var payments = [];
-    for (var i = 0; i < months - 1; i++) payments.push(regular);
-    payments.push(last);
-    return { regular: regular, last: last, payments: payments };
+    for (var i = 0; i < months; i++) payments.push(regular);
+
+    if (surplus > 0) {
+      var reduceCount = Math.min(months, Math.floor(surplus / 100));
+      var reduceRemainder = surplus - reduceCount * 100; // < 100, final ruble-level correction
+      for (var k = 0; k < reduceCount; k++) {
+        payments[Math.floor(k * months / reduceCount)] -= 100;
+      }
+      payments[months - 1] -= reduceRemainder;
+    }
+
+    if (payments.some(function (p) { return p < 0; })) {
+      // Fallback: plain even ruble split, no artificial 100-rounding
+      var base = Math.floor(remaining / months);
+      var rem = remaining - base * months;
+      payments = [];
+      for (var j = 0; j < months; j++) payments.push(base + (j < rem ? 1 : 0));
+      regular = payments[0];
+    }
+
+    return { regular: regular, last: payments[payments.length - 1], payments: payments };
   }
 
   /* ---------------- core calculation ---------------- */
@@ -166,8 +167,6 @@
     result.remaining = remaining;
     result.schedule = schedule;
     result.monthlyPayment = schedule.regular;
-    result.lastPayment = schedule.last;
-    result.hasDifferentLast = schedule.last !== schedule.regular;
 
     return result;
   }
@@ -192,7 +191,6 @@
     emptyState: document.getElementById('emptyState'),
 
     monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
-    lastPaymentNote: document.getElementById('lastPaymentNote'),
 
     sumPrice: document.getElementById('sumPrice'),
     sumDown: document.getElementById('sumDown'),
@@ -282,13 +280,6 @@
 
     els.monthlyPaymentValue.textContent = formatMoney(r.monthlyPayment);
 
-    if (r.hasDifferentLast) {
-      els.lastPaymentNote.hidden = false;
-      els.lastPaymentNote.textContent = 'Последний платёж: ' + formatMoney(r.lastPayment);
-    } else {
-      els.lastPaymentNote.hidden = true;
-    }
-
     els.sumPrice.textContent = formatMoney(r.price);
     els.sumDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
     els.sumMonths.textContent = formatMonthsWord(r.months);
@@ -305,8 +296,7 @@
     var payments = r.schedule.payments;
     for (var i = 0; i < payments.length; i++) {
       var li = document.createElement('li');
-      var isLast = i === payments.length - 1;
-      if (isLast && r.hasDifferentLast) li.className = 'is-last-payment';
+      if (payments[i] !== r.schedule.regular) li.className = 'is-adjusted';
       var monthLabel = document.createElement('span');
       monthLabel.textContent = 'Месяц ' + (i + 1);
       var valueLabel = document.createElement('span');
@@ -391,9 +381,6 @@
       'Ежемесячный платёж: ' + formatMoney(r.monthlyPayment),
       'Количество платежей: ' + r.months
     ];
-    if (r.hasDifferentLast) {
-      lines.push('Последний платёж: ' + formatMoney(r.lastPayment));
-    }
     lines.push('Итоговая стоимость: ' + formatMoney(r.totalCost));
     lines.push('');
     lines.push('Итоговая стоимость фиксируется при оформлении рассрочки.');
