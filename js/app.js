@@ -3,20 +3,18 @@
 
   /* ==========================================================
      AS PAY — installment calculator
-     Trade markup logic: months * 5% of retail price.
-     No compound interest, no interest-on-balance, no accrual.
+     Trade markup logic: months * 4.5% is the formula used once to
+     determine a fixed trading markup and a fixed sale price. No
+     compound interest, no interest-on-balance, no accrual over time.
      ========================================================== */
 
-  var MARKUP_PER_MONTH = 5;      // percent per month
+  var MARKUP_PER_MONTH = 4.5;        // percent per month
   var MIN_MONTHS = 3;
   var MAX_MONTHS = 12;
-  var MIN_DOWN_PERCENT = 25;     // minimum down payment, % of retail price (when a down payment is made)
-  var NO_DOWN_MAX_PRICE = 50000; // 0 ₽ down payment is only allowed at or below this retail price
-  var CUSTOM_TERMS_THRESHOLD = 40; // percent of price — at or above this, individual conditions apply
-
-  // Company WhatsApp number for the individual-conditions CTA.
-  // Digits only, with country code, no "+", spaces or dashes.
-  var WHATSAPP_NUMBER = '79290930303';
+  var STANDARD_MIN_DOWN_PERCENT = 20; // minimum down payment, % of retail price (when a down payment is made)
+  var REMAINDER_THRESHOLD_PERCENT = 40; // at or above this, markup applies only to the balance after the down payment
+  var ZERO_DOWN_MAX_PRICE = 50000;    // 0 ₽ down payment is only allowed at or below this retail price
+  var ZERO_DOWN_MONTHS = 8;           // ...and only for this exact term
 
   var state = {
     price: 0,
@@ -29,6 +27,14 @@
   function formatMoney(n) {
     var rounded = Math.round(n || 0);
     return rounded.toLocaleString('ru-RU').replace(/ /g, ' ') + ' ₽';
+  }
+
+  // Russian-style percent formatting: one decimal place with a comma,
+  // trailing ",0" dropped (e.g. 27.4 -> "27,4%", 36 -> "36%").
+  function formatPercent(value) {
+    var fixed = value.toFixed(1);
+    if (fixed.slice(-2) === '.0') fixed = fixed.slice(0, -2);
+    return fixed.replace('.', ',') + '%';
   }
 
   function formatMonthsWord(n) {
@@ -64,109 +70,93 @@
     return n.toLocaleString('ru-RU').replace(/ /g, ' ');
   }
 
-  /* ---------------- schedule builder ---------------- */
-  // Builds a payment schedule for `remaining` rubles over `months`
-  // installments. The headline monthly payment is `remaining/months`
-  // rounded UP to the nearest 100 — same figure as before. Paying that
-  // amount every month would overshoot `remaining` by a small surplus;
-  // instead of dumping that whole surplus on one payment, it's spread
-  // evenly across the schedule in 100-ruble steps (so most months stay
-  // a clean round number and no single payment sticks out), with any
-  // final sub-100 correction landing on the last payment so the sum is
-  // exact to the ruble. Falls back to a plain even split when the
-  // amount is too small for 100-ruble rounding to work without a
-  // negative payment.
-  function buildSchedule(remaining, months) {
-    remaining = Math.round(remaining);
-    if (months <= 0) return { regular: 0, last: remaining, payments: [remaining] };
-
-    var exact = remaining / months;
-    var regular = Math.ceil(exact / 100) * 100;
-    var surplus = regular * months - remaining; // >= 0: overpayment if every month paid `regular`
-
-    var payments = [];
-    for (var i = 0; i < months; i++) payments.push(regular);
-
-    if (surplus > 0) {
-      var reduceCount = Math.min(months, Math.floor(surplus / 100));
-      var reduceRemainder = surplus - reduceCount * 100; // < 100, final ruble-level correction
-      for (var k = 0; k < reduceCount; k++) {
-        payments[Math.floor(k * months / reduceCount)] -= 100;
-      }
-      payments[months - 1] -= reduceRemainder;
-    }
-
-    if (payments.some(function (p) { return p < 0; })) {
-      // Fallback: plain even ruble split, no artificial 100-rounding
-      var base = Math.floor(remaining / months);
-      var rem = remaining - base * months;
-      payments = [];
-      for (var j = 0; j < months; j++) payments.push(base + (j < rem ? 1 : 0));
-      regular = payments[0];
-    }
-
-    return { regular: regular, last: payments[payments.length - 1], payments: payments };
-  }
-
   /* ---------------- core calculation ---------------- */
-  // Follows this order strictly:
-  // 1. retail price  2. term (months)  3. trade markup (5% × months)
-  // 4. total cost with markup  5. zero-down-payment mode?
-  // 6. zero down is only allowed at retail price <= 50 000 ₽
-  // 7. a non-zero down payment must be at least 25% of retail price
-  // 8. down payment as % of retail price
-  // 9. 40% or more of retail price -> individual conditions (WhatsApp)
-  // 10. 0% (price <= 50 000 ₽) or 25%..39.99% -> standard calculation
-  // 11. monthly payment  12. round displayed monthly payment up to nearest 100 ₽
+  // Order of checks:
+  // 1. retail price  2. term (months)
+  // 3. zero-down-payment mode? -> allowed only at retail price <= 50 000 ₽
+  //    AND term === 8 months; otherwise show a notice, no calculation.
+  // 4. a non-zero down payment must be at least 20% of retail price;
+  //    below that, show a notice with the exact minimum amount.
+  // 5. down payment >= 40% of retail price -> the 4.5%-per-month markup
+  //    is computed only on the balance remaining after the down payment.
+  //    down payment 20%..39.99% -> the markup is computed on the full
+  //    retail price, then the down payment is subtracted.
+  // 6. the exact monthly payment is rounded UP to the nearest 100 ₽ —
+  //    that rounded amount is charged every month, all payments equal.
+  //    The trading markup is adjusted (not a separate final payment) to
+  //    absorb the rounding difference, so months * monthlyPayment is
+  //    always exactly the future-payments total.
   function calculate() {
     var price = state.price;
     var down = Math.min(state.down, price);
     var months = state.months;
     var downPercent = price > 0 ? (down / price) * 100 : 0;
 
-    var markupPercent = months * MARKUP_PER_MONTH;
-    var markupAmount = Math.round(price * (markupPercent / 100));
-    var totalCost = price + markupAmount;
-
     var result = {
       price: price,
       down: down,
       downPercent: downPercent,
       months: months,
-      markupPercent: markupPercent,
-      markupAmount: markupAmount,
-      totalCost: totalCost,
       isEmpty: price <= 0,
       isNotice: false,
       noticeText: '',
-      isCustom: false
+      noticeMinDownText: ''
     };
 
     if (result.isEmpty) return result;
 
     if (down === 0) {
-      if (price > NO_DOWN_MAX_PRICE) {
+      var zeroDownValid = price <= ZERO_DOWN_MAX_PRICE && months === ZERO_DOWN_MONTHS;
+      if (!zeroDownValid) {
         result.isNotice = true;
-        result.noticeText = 'Для товаров стоимостью свыше ' + formatMoney(NO_DOWN_MAX_PRICE) + ' необходим первоначальный взнос.';
+        var minDownForZero = Math.ceil(price * STANDARD_MIN_DOWN_PERCENT / 100);
+        if (price > ZERO_DOWN_MAX_PRICE) {
+          result.noticeText = 'Для товаров стоимостью более ' + formatMoney(ZERO_DOWN_MAX_PRICE) + ' минимальный первоначальный взнос составляет 20%.';
+          result.noticeMinDownText = 'Минимальный взнос: ' + formatMoney(minDownForZero);
+        } else {
+          // Reachable only if months got out of sync with the UI's
+          // zero-down lock (defensive; the UI itself forces 8 months).
+          result.noticeText = 'Без первоначального взноса рассрочка доступна только на ' + formatMonthsWord(ZERO_DOWN_MONTHS) + '.';
+        }
         return result;
       }
-    } else if (down * 100 < price * MIN_DOWN_PERCENT) {
-      var minDown = Math.ceil(price * MIN_DOWN_PERCENT / 100);
+    } else if (downPercent < STANDARD_MIN_DOWN_PERCENT) {
       result.isNotice = true;
-      result.noticeText = 'Минимальный первоначальный взнос — ' + formatMoney(minDown) + '.';
+      var minDown = Math.ceil(price * STANDARD_MIN_DOWN_PERCENT / 100);
+      result.noticeText = 'Минимальный первоначальный взнос — 20%.';
+      result.noticeMinDownText = 'Минимальный взнос: ' + formatMoney(minDown);
       return result;
     }
 
-    if (down * 100 >= price * CUSTOM_TERMS_THRESHOLD) {
-      result.isCustom = true;
-      return result;
+    var isRemainderBased = downPercent >= REMAINDER_THRESHOLD_PERCENT;
+    var baseMarkupRate = months * MARKUP_PER_MONTH; // percent
+    var baseAmount, baseRemaining;
+
+    if (isRemainderBased) {
+      baseAmount = price - down;
+      var markupOnRemainder = baseAmount * (baseMarkupRate / 100);
+      baseRemaining = baseAmount + markupOnRemainder;
+    } else {
+      baseAmount = price;
+      var markupOnPrice = price * (baseMarkupRate / 100);
+      var baseTotalPrice = price + markupOnPrice;
+      baseRemaining = baseTotalPrice - down;
     }
 
-    var remaining = totalCost - down;
-    var schedule = buildSchedule(remaining, months);
-    result.remaining = remaining;
-    result.schedule = schedule;
-    result.monthlyPayment = schedule.regular;
+    var rawMonthlyPayment = baseRemaining / months;
+    var monthlyPayment = Math.ceil(rawMonthlyPayment / 100) * 100;
+    var finalInstallmentAmount = monthlyPayment * months;
+    var finalTotalPrice = down + finalInstallmentAmount;
+    var finalMarkup = finalTotalPrice - price;
+    var finalMarkupPercent = baseAmount > 0 ? (finalMarkup / baseAmount) * 100 : 0;
+
+    result.isRemainderBased = isRemainderBased;
+    result.baseMarkupRate = baseMarkupRate;
+    result.monthlyPayment = monthlyPayment;
+    result.finalInstallmentAmount = finalInstallmentAmount;
+    result.finalTotalPrice = finalTotalPrice;
+    result.finalMarkup = finalMarkup;
+    result.finalMarkupPercent = finalMarkupPercent;
 
     return result;
   }
@@ -180,15 +170,15 @@
     downQuick: document.getElementById('downQuick'),
     downNoteMin: document.getElementById('downNoteMin'),
     downNoteFree: document.getElementById('downNoteFree'),
-    noDownChip: document.querySelector('#downQuick .chip[data-percent="0"]'),
     monthsGrid: document.getElementById('monthsGrid'),
     markupHint: document.getElementById('markupHint'),
 
     resultStandard: document.getElementById('resultStandard'),
-    resultCustom: document.getElementById('resultCustom'),
     resultNotice: document.getElementById('resultNotice'),
     noticeText: document.getElementById('noticeText'),
+    noticeMinDown: document.getElementById('noticeMinDown'),
     emptyState: document.getElementById('emptyState'),
+    benefitNote: document.getElementById('benefitNote'),
 
     monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
 
@@ -196,8 +186,10 @@
     sumDown: document.getElementById('sumDown'),
     sumMonths: document.getElementById('sumMonths'),
     sumMarkupPercent: document.getElementById('sumMarkupPercent'),
+    sumMarkupAmount: document.getElementById('sumMarkupAmount'),
+    sumPaymentsCount: document.getElementById('sumPaymentsCount'),
+    sumInstallmentAmount: document.getElementById('sumInstallmentAmount'),
     sumTotal: document.getElementById('sumTotal'),
-    sumRemaining: document.getElementById('sumRemaining'),
 
     scheduleToggle: document.getElementById('scheduleToggle'),
     schedulePanel: document.getElementById('schedulePanel'),
@@ -205,11 +197,6 @@
 
     copyButton: document.getElementById('copyButton'),
     copyButtonLabel: document.getElementById('copyButtonLabel'),
-
-    customPrice: document.getElementById('customPrice'),
-    customDown: document.getElementById('customDown'),
-    customMonths: document.getElementById('customMonths'),
-    customOfferButton: document.getElementById('customOfferButton'),
 
     toast: document.getElementById('toast')
   };
@@ -231,32 +218,44 @@
     els.monthsGrid.appendChild(frag);
   }
 
+  // True while the zero-down exception is in force: term is locked to
+  // 8 months and every other term button is disabled.
+  function isZeroDownLockActive() {
+    return state.down === 0 && state.price > 0 && state.price <= ZERO_DOWN_MAX_PRICE;
+  }
+
   function render() {
     var r = calculate();
     lastResult = r;
 
-    // month buttons active state
+    var zeroDownLock = isZeroDownLockActive();
+    if (zeroDownLock && state.months !== ZERO_DOWN_MONTHS) {
+      state.months = ZERO_DOWN_MONTHS;
+      r = calculate();
+      lastResult = r;
+    }
+
+    // month buttons: active state + zero-down lock (only 8 stays enabled)
     var monthBtns = els.monthsGrid.querySelectorAll('.month-btn');
     monthBtns.forEach(function (b) {
-      var active = parseInt(b.getAttribute('data-months'), 10) === state.months;
+      var m = parseInt(b.getAttribute('data-months'), 10);
+      var active = m === state.months;
       b.classList.toggle('is-active', active);
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
+      b.disabled = zeroDownLock && m !== ZERO_DOWN_MONTHS;
     });
 
-    els.markupHint.textContent = 'Торговая наценка: ' + r.markupPercent + '%';
+    els.markupHint.textContent = 'Торговая наценка: ' + formatPercent(state.months * MARKUP_PER_MONTH);
 
     var downPct = r.price > 0 ? Math.round(r.downPercent) : 0;
     els.downPercentHint.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
 
-    var zeroDownAllowed = r.price > 0 && r.price <= NO_DOWN_MAX_PRICE;
-    els.downNoteMin.hidden = r.price <= 0;
-    els.downNoteFree.hidden = !zeroDownAllowed;
-    els.noDownChip.disabled = r.price > NO_DOWN_MAX_PRICE;
+    els.downNoteMin.hidden = r.price <= 0 || zeroDownLock;
+    els.downNoteFree.hidden = !(r.price > 0 && r.price <= ZERO_DOWN_MAX_PRICE);
 
     // Reset all result sections, then reveal exactly the one that applies.
     els.emptyState.hidden = true;
     els.resultNotice.hidden = true;
-    els.resultCustom.hidden = true;
     els.resultStandard.hidden = true;
 
     if (r.isEmpty) {
@@ -266,26 +265,27 @@
 
     if (r.isNotice) {
       els.noticeText.textContent = r.noticeText;
+      if (r.noticeMinDownText) {
+        els.noticeMinDown.hidden = false;
+        els.noticeMinDown.textContent = r.noticeMinDownText;
+      } else {
+        els.noticeMinDown.hidden = true;
+      }
       els.resultNotice.hidden = false;
       return;
     }
 
-    if (r.isCustom) {
-      els.customPrice.textContent = formatMoney(r.price);
-      els.customDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
-      els.customMonths.textContent = formatMonthsWord(r.months);
-      els.resultCustom.hidden = false;
-      return;
-    }
-
     els.monthlyPaymentValue.textContent = formatMoney(r.monthlyPayment);
+    els.benefitNote.hidden = !r.isRemainderBased;
 
     els.sumPrice.textContent = formatMoney(r.price);
     els.sumDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
     els.sumMonths.textContent = formatMonthsWord(r.months);
-    els.sumMarkupPercent.textContent = r.markupPercent + '%';
-    els.sumTotal.textContent = formatMoney(r.totalCost);
-    els.sumRemaining.textContent = formatMoney(r.remaining);
+    els.sumMarkupPercent.textContent = formatPercent(r.finalMarkupPercent);
+    els.sumMarkupAmount.textContent = formatMoney(r.finalMarkup);
+    els.sumPaymentsCount.textContent = r.months;
+    els.sumInstallmentAmount.textContent = formatMoney(r.finalInstallmentAmount);
+    els.sumTotal.textContent = formatMoney(r.finalTotalPrice);
 
     renderSchedule(r);
     els.resultStandard.hidden = false;
@@ -293,14 +293,12 @@
 
   function renderSchedule(r) {
     els.scheduleList.innerHTML = '';
-    var payments = r.schedule.payments;
-    for (var i = 0; i < payments.length; i++) {
+    for (var i = 0; i < r.months; i++) {
       var li = document.createElement('li');
-      if (payments[i] !== r.schedule.regular) li.className = 'is-adjusted';
       var monthLabel = document.createElement('span');
       monthLabel.textContent = 'Месяц ' + (i + 1);
       var valueLabel = document.createElement('span');
-      valueLabel.textContent = formatMoney(payments[i]);
+      valueLabel.textContent = formatMoney(r.monthlyPayment);
       li.appendChild(monthLabel);
       li.appendChild(valueLabel);
       els.scheduleList.appendChild(li);
@@ -356,7 +354,7 @@
 
   els.monthsGrid.addEventListener('click', function (e) {
     var btn = e.target.closest('.month-btn');
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     state.months = parseInt(btn.getAttribute('data-months'), 10);
     render();
   });
@@ -377,13 +375,13 @@
       'Стоимость товара: ' + formatMoney(r.price),
       'Первоначальный взнос: ' + formatMoney(r.down),
       'Срок: ' + formatMonthsWord(r.months),
-      'Торговая наценка: ' + r.markupPercent + '%',
+      'Торговая наценка: ' + formatMoney(r.finalMarkup),
       'Ежемесячный платёж: ' + formatMoney(r.monthlyPayment),
-      'Количество платежей: ' + r.months
+      'Количество платежей: ' + r.months,
+      'Итоговая стоимость: ' + formatMoney(r.finalTotalPrice),
+      '',
+      'Стоимость фиксируется при оформлении рассрочки.'
     ];
-    lines.push('Итоговая стоимость: ' + formatMoney(r.totalCost));
-    lines.push('');
-    lines.push('Итоговая стоимость фиксируется при оформлении рассрочки.');
     return lines.join('\n');
   }
 
@@ -401,7 +399,7 @@
   }
 
   els.copyButton.addEventListener('click', function () {
-    if (!lastResult || lastResult.isEmpty || lastResult.isNotice || lastResult.isCustom) return;
+    if (!lastResult || lastResult.isEmpty || lastResult.isNotice) return;
     var text = buildCopyText(lastResult);
 
     function done(ok) {
@@ -434,26 +432,6 @@
         done(false);
       }
     }
-  });
-
-  /* ---------------- individual conditions -> WhatsApp ---------------- */
-
-  function buildWhatsAppUrl(r) {
-    var lines = [
-      'Здравствуйте! Хочу узнать индивидуальные условия AS PAY.',
-      'Стоимость товара: ' + formatMoney(r.price),
-      'Первоначальный взнос: ' + formatMoney(r.down),
-      'Размер взноса: ' + Math.round(r.downPercent) + '%',
-      'Срок рассрочки: ' + formatMonthsWord(r.months)
-    ];
-    var text = lines.join('\n');
-    return 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text);
-  }
-
-  els.customOfferButton.addEventListener('click', function () {
-    if (!lastResult || !lastResult.isCustom) return;
-    var win = window.open(buildWhatsAppUrl(lastResult), '_blank');
-    if (win) win.opener = null;
   });
 
   /* ---------------- init ---------------- */
