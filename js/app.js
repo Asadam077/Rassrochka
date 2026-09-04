@@ -148,9 +148,11 @@
     var finalInstallmentAmount = monthlyPayment * months;
     var finalTotalPrice = down + finalInstallmentAmount;
     var finalMarkup = finalTotalPrice - price;
-    var finalMarkupPercent = baseAmount > 0 ? (finalMarkup / baseAmount) * 100 : 0;
+    // Always shown to the client relative to the full retail price —
+    // regardless of which internal base (full price or the balance
+    // after the down payment) the markup was actually computed on.
+    var finalMarkupPercent = price > 0 ? (finalMarkup / price) * 100 : 0;
 
-    result.isRemainderBased = isRemainderBased;
     result.baseMarkupRate = baseMarkupRate;
     result.monthlyPayment = monthlyPayment;
     result.finalInstallmentAmount = finalInstallmentAmount;
@@ -178,7 +180,6 @@
     noticeText: document.getElementById('noticeText'),
     noticeMinDown: document.getElementById('noticeMinDown'),
     emptyState: document.getElementById('emptyState'),
-    benefitNote: document.getElementById('benefitNote'),
 
     monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
 
@@ -276,7 +277,6 @@
     }
 
     els.monthlyPaymentValue.textContent = formatMoney(r.monthlyPayment);
-    els.benefitNote.hidden = !r.isRemainderBased;
 
     els.sumPrice.textContent = formatMoney(r.price);
     els.sumDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';

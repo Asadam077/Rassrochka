@@ -264,14 +264,6 @@ body{
   margin:14px auto 22px;
 }
 
-.result__benefit{
-  text-align:center;
-  background:var(--gold-wash);
-  border-radius:var(--radius-sm);
-  padding:10px 14px;
-  margin:0 0 22px;
-}
-
 /* ============ Summary grid ============ */
 .summary-grid{
   display:grid;
