@@ -12,7 +12,6 @@
   var MIN_MONTHS = 3;
   var MAX_MONTHS = 12;
   var STANDARD_MIN_DOWN_PERCENT = 20; // minimum down payment, % of retail price (when a down payment is made)
-  var REMAINDER_THRESHOLD_PERCENT = 40; // at or above this, markup applies only to the balance after the down payment
   var ZERO_DOWN_MAX_PRICE = 50000;    // 0 ₽ down payment is only allowed at or below this retail price
   var ZERO_DOWN_MAX_MONTHS = 8;       // ...and only for terms up to this many months (3..8)
 
@@ -74,13 +73,14 @@
   // Order of checks:
   // 1. retail price  2. term (months)
   // 3. zero-down-payment mode? -> allowed only at retail price <= 50 000 ₽
-  //    AND term === 8 months; otherwise show a notice, no calculation.
+  //    AND term 3..8 months; otherwise show a notice, no calculation.
   // 4. a non-zero down payment must be at least 20% of retail price;
   //    below that, show a notice with the exact minimum amount.
-  // 5. down payment >= 40% of retail price -> the 4.5%-per-month markup
-  //    is computed only on the balance remaining after the down payment.
-  //    down payment 20%..39.99% -> the markup is computed on the full
-  //    retail price, then the down payment is subtracted.
+  // 5. the down payment (0 ₽ included) is always subtracted from the
+  //    retail price first; the 4.5%-per-month markup is then computed
+  //    only on that remaining balance. Same single rule regardless of
+  //    how large the down payment is — no separate bracket above any
+  //    threshold.
   // 6. the exact monthly payment is rounded UP to the nearest 100 ₽ —
   //    that rounded amount is charged every month, all payments equal.
   //    The trading markup is adjusted (not a separate final payment) to
@@ -128,29 +128,19 @@
       return result;
     }
 
-    var isRemainderBased = downPercent >= REMAINDER_THRESHOLD_PERCENT;
     var baseMarkupRate = months * MARKUP_PER_MONTH; // percent
-    var baseAmount, baseRemaining;
-
-    if (isRemainderBased) {
-      baseAmount = price - down;
-      var markupOnRemainder = baseAmount * (baseMarkupRate / 100);
-      baseRemaining = baseAmount + markupOnRemainder;
-    } else {
-      baseAmount = price;
-      var markupOnPrice = price * (baseMarkupRate / 100);
-      var baseTotalPrice = price + markupOnPrice;
-      baseRemaining = baseTotalPrice - down;
-    }
+    var remainingRetail = price - down;
+    var markupOnRemainder = remainingRetail * (baseMarkupRate / 100);
+    var baseRemaining = remainingRetail + markupOnRemainder;
 
     var rawMonthlyPayment = baseRemaining / months;
     var monthlyPayment = Math.ceil(rawMonthlyPayment / 100) * 100;
     var finalInstallmentAmount = monthlyPayment * months;
     var finalTotalPrice = down + finalInstallmentAmount;
     var finalMarkup = finalTotalPrice - price;
-    // Always shown to the client relative to the full retail price —
-    // regardless of which internal base (full price or the balance
-    // after the down payment) the markup was actually computed on.
+    // Shown to the client relative to the full retail price (final
+    // price vs retail price), not the reduced balance the markup was
+    // actually computed on.
     var finalMarkupPercent = price > 0 ? (finalMarkup / price) * 100 : 0;
 
     result.baseMarkupRate = baseMarkupRate;
@@ -173,7 +163,6 @@
     downNoteMin: document.getElementById('downNoteMin'),
     downNoteFree: document.getElementById('downNoteFree'),
     monthsGrid: document.getElementById('monthsGrid'),
-    markupHint: document.getElementById('markupHint'),
 
     resultStandard: document.getElementById('resultStandard'),
     resultNotice: document.getElementById('resultNotice'),
@@ -246,8 +235,6 @@
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
       b.disabled = zeroDownLock && m > ZERO_DOWN_MAX_MONTHS;
     });
-
-    els.markupHint.textContent = 'Торговая наценка: ' + formatPercent(state.months * MARKUP_PER_MONTH);
 
     var downPct = r.price > 0 ? Math.round(r.downPercent) : 0;
     els.downPercentHint.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
