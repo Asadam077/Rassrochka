@@ -14,7 +14,7 @@
   var STANDARD_MIN_DOWN_PERCENT = 20; // minimum down payment, % of retail price (when a down payment is made)
   var REMAINDER_THRESHOLD_PERCENT = 40; // at or above this, markup applies only to the balance after the down payment
   var ZERO_DOWN_MAX_PRICE = 50000;    // 0 ₽ down payment is only allowed at or below this retail price
-  var ZERO_DOWN_MONTHS = 8;           // ...and only for this exact term
+  var ZERO_DOWN_MAX_MONTHS = 8;       // ...and only for terms up to this many months (3..8)
 
   var state = {
     price: 0,
@@ -106,7 +106,7 @@
     if (result.isEmpty) return result;
 
     if (down === 0) {
-      var zeroDownValid = price <= ZERO_DOWN_MAX_PRICE && months === ZERO_DOWN_MONTHS;
+      var zeroDownValid = price <= ZERO_DOWN_MAX_PRICE && months <= ZERO_DOWN_MAX_MONTHS;
       if (!zeroDownValid) {
         result.isNotice = true;
         var minDownForZero = Math.ceil(price * STANDARD_MIN_DOWN_PERCENT / 100);
@@ -115,8 +115,8 @@
           result.noticeMinDownText = 'Минимальный взнос: ' + formatMoney(minDownForZero);
         } else {
           // Reachable only if months got out of sync with the UI's
-          // zero-down lock (defensive; the UI itself forces 8 months).
-          result.noticeText = 'Без первоначального взноса рассрочка доступна только на ' + formatMonthsWord(ZERO_DOWN_MONTHS) + '.';
+          // zero-down lock (defensive; the UI itself caps the term at 8).
+          result.noticeText = 'Без первоначального взноса рассрочка доступна на срок от ' + MIN_MONTHS + ' до ' + ZERO_DOWN_MAX_MONTHS + ' месяцев.';
         }
         return result;
       }
@@ -219,8 +219,8 @@
     els.monthsGrid.appendChild(frag);
   }
 
-  // True while the zero-down exception is in force: term is locked to
-  // 8 months and every other term button is disabled.
+  // True while the zero-down exception is in force: the term is capped
+  // at ZERO_DOWN_MAX_MONTHS and longer terms are disabled.
   function isZeroDownLockActive() {
     return state.down === 0 && state.price > 0 && state.price <= ZERO_DOWN_MAX_PRICE;
   }
@@ -230,20 +230,21 @@
     lastResult = r;
 
     var zeroDownLock = isZeroDownLockActive();
-    if (zeroDownLock && state.months !== ZERO_DOWN_MONTHS) {
-      state.months = ZERO_DOWN_MONTHS;
+    if (zeroDownLock && state.months > ZERO_DOWN_MAX_MONTHS) {
+      state.months = ZERO_DOWN_MAX_MONTHS;
       r = calculate();
       lastResult = r;
     }
 
-    // month buttons: active state + zero-down lock (only 8 stays enabled)
+    // month buttons: active state + zero-down lock (terms beyond
+    // ZERO_DOWN_MAX_MONTHS are disabled; 3..8 stay freely selectable)
     var monthBtns = els.monthsGrid.querySelectorAll('.month-btn');
     monthBtns.forEach(function (b) {
       var m = parseInt(b.getAttribute('data-months'), 10);
       var active = m === state.months;
       b.classList.toggle('is-active', active);
       b.setAttribute('aria-pressed', active ? 'true' : 'false');
-      b.disabled = zeroDownLock && m !== ZERO_DOWN_MONTHS;
+      b.disabled = zeroDownLock && m > ZERO_DOWN_MAX_MONTHS;
     });
 
     els.markupHint.textContent = 'Торговая наценка: ' + formatPercent(state.months * MARKUP_PER_MONTH);
