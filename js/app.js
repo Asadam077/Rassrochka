@@ -3,12 +3,12 @@
 
   /* ==========================================================
      AS PAY — installment calculator
-     Trade markup logic: months * 4.5% is the formula used once to
+     Trade markup logic: months * 6% is the formula used once to
      determine a fixed trading markup and a fixed sale price. No
      compound interest, no interest-on-balance, no accrual over time.
      ========================================================== */
 
-  var MARKUP_PER_MONTH = 4.5;        // percent per month
+  var MARKUP_PER_MONTH = 6;          // percent per month
   var MIN_MONTHS = 3;
   var MAX_MONTHS = 12;
   var STANDARD_MIN_DOWN_PERCENT = 20; // minimum down payment, % of retail price (when a down payment is made)
@@ -77,7 +77,7 @@
   // 4. a non-zero down payment must be at least 20% of retail price;
   //    below that, show a notice with the exact minimum amount.
   // 5. the down payment (0 ₽ included) is always subtracted from the
-  //    retail price first; the 4.5%-per-month markup is then computed
+  //    retail price first; the 6%-per-month markup is then computed
   //    only on that remaining balance. Same single rule regardless of
   //    how large the down payment is — no separate bracket above any
   //    threshold.
