@@ -12,15 +12,22 @@
   var MIN_MONTHS = 3;
   var MAX_MONTHS = 12;
   var STANDARD_MIN_DOWN_PERCENT = 20; // minimum down payment, % of retail price (when a down payment is made)
-  var ZERO_DOWN_MAX_PRICE = 50000;    // 0 ₽ down payment is only allowed at or below this retail price
+  var ZERO_DOWN_MAX_PRICE = 50000;    // 0 ₽ down payment is only allowed at or below this retail price;
+                                       // also the guarantor-rule price threshold (see getGuarantorStatus)
   var ZERO_DOWN_MAX_MONTHS = 8;       // ...and only for terms up to this many months (3..8)
-  var GUARANTOR_REMAINDER_THRESHOLD = 50000; // guarantor rule threshold on (price - down)
   var POPULAR_MONTHS = 7;             // optional "Популярный вариант" badge
 
   var state = {
     price: 0,
     down: 0,
-    months: null // currently selected term in the payments table; null = nothing selectable yet
+    months: null, // currently selected term in the payments table; null = nothing selectable yet
+    checks: {
+      // self-declared eligibility answers; null = not answered yet
+      buyerAge: null,
+      buyerResidency: null,
+      guarantorAge: null,
+      guarantorResidency: null
+    }
   };
 
   /* ---------------- helpers ---------------- */
@@ -161,17 +168,19 @@
     return out;
   }
 
-  // New business rule, independent of the chosen term — based only on
-  // the down payment and the remainder (price - down):
-  // 1. no down payment (0 ₽)              -> guarantor always required
-  // 2. down payment made, remainder < 50 000 ₽ -> guarantor not required
-  // 3. down payment made, remainder >= 50 000 ₽ -> guarantor required
+  // Guarantor rule — independent of the chosen term and, crucially,
+  // independent of the down payment's size once the retail price is
+  // above the threshold. The deciding factor is the item's own retail
+  // price (before any down payment), never the remaining balance, the
+  // financed amount, the final marked-up total, or the monthly payment:
+  // 1. price <= 50 000 ₽ and no down payment (0 ₽) -> guarantor required
+  // 2. price <= 50 000 ₽ and a (valid, >= 20%) down payment is made -> guarantor NOT required
+  // 3. price  > 50 000 ₽, regardless of the down payment amount -> guarantor always required
   function getGuarantorStatus(price, down) {
     if (price <= 0) return null;
-    var remainder = price - down;
-    if (down === 0) return { required: true, remainder: remainder };
-    if (remainder < GUARANTOR_REMAINDER_THRESHOLD) return { required: false, remainder: remainder };
-    return { required: true, remainder: remainder };
+    if (price > ZERO_DOWN_MAX_PRICE) return { required: true };
+    if (down === 0) return { required: true };
+    return { required: false };
   }
 
   // Keeps the previously selected term if it is still available;
@@ -211,6 +220,7 @@
     termsList: document.getElementById('termsList'),
 
     resultStandard: document.getElementById('resultStandard'),
+    resultGuarantorStatus: document.getElementById('resultGuarantorStatus'),
     monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
     sumPrice: document.getElementById('sumPrice'),
     sumDown: document.getElementById('sumDown'),
@@ -233,9 +243,10 @@
 
     conditionsToggle: document.getElementById('conditionsToggle'),
     conditionsPanel: document.getElementById('conditionsPanel'),
-    ageYes: document.getElementById('ageYes'),
-    ageNo: document.getElementById('ageNo'),
-    ageNote: document.getElementById('ageNote'),
+    buyerAgeNote: document.getElementById('buyerAgeNote'),
+    buyerResidencyNote: document.getElementById('buyerResidencyNote'),
+    guarantorRequirements: document.getElementById('guarantorRequirements'),
+    guarantorStatus: document.getElementById('guarantorStatus'),
 
     toast: document.getElementById('toast')
   };
@@ -345,13 +356,21 @@
     });
   }
 
-  function renderSelectedDetail(r) {
+  function renderSelectedDetail(r, guarantor) {
     lastSelectedResult = r;
     if (!r) {
       els.resultStandard.hidden = true;
       return;
     }
     els.resultStandard.hidden = false;
+
+    if (guarantor) {
+      els.resultGuarantorStatus.hidden = false;
+      els.resultGuarantorStatus.textContent = guarantor.required ? 'Требуется поручитель' : 'Поручитель не требуется';
+      els.resultGuarantorStatus.classList.toggle('result__guarantor-status--warn', guarantor.required);
+    } else {
+      els.resultGuarantorStatus.hidden = true;
+    }
 
     var downPct = Math.round(r.downPercent);
     els.monthlyPaymentValue.textContent = formatMoney(r.monthlyPayment);
@@ -381,16 +400,19 @@
     }
   }
 
-  function renderEligibilitySummary(price, down, globalStatus, hasAvailableTerm) {
+  function appendEligibilityLine(container, ok, text) {
+    var p = document.createElement('p');
+    p.className = 'eligibility__line' + (ok ? '' : ' eligibility__line--warn');
+    p.textContent = (ok ? '✓ ' : '⚠ ') + text;
+    container.appendChild(p);
+  }
+
+  function renderEligibilitySummary(price, down, globalStatus, hasAvailableTerm, guarantor, checks) {
     var container = els.eligibilitySummary;
     container.innerHTML = '';
 
     if (globalStatus.isNotice || !hasAvailableTerm) {
-      var unavailable = document.createElement('p');
-      unavailable.className = 'eligibility__line eligibility__line--warn';
-      unavailable.textContent = '⚠ По указанным параметрам стандартные условия рассрочки недоступны';
-      container.appendChild(unavailable);
-
+      appendEligibilityLine(container, false, 'По указанным параметрам стандартные условия рассрочки недоступны');
       if (globalStatus.noticeText) {
         var reasonP = document.createElement('p');
         reasonP.className = 'eligibility__reason';
@@ -400,19 +422,69 @@
       return;
     }
 
-    var guarantor = getGuarantorStatus(price, down);
-    var lines = [
-      { ok: true, text: 'Доступна рассрочка' },
-      { ok: true, text: 'Первоначальный взнос: ' + formatMoney(down) },
-      { ok: true, text: 'Сумма в рассрочку: ' + formatMoney(price - down) },
-      { ok: !guarantor.required, text: guarantor.required ? 'Требуется поручитель' : 'Поручитель не требуется' }
-    ];
-    lines.forEach(function (line) {
-      var p = document.createElement('p');
-      p.className = 'eligibility__line' + (line.ok ? '' : ' eligibility__line--warn');
-      p.textContent = (line.ok ? '✓ ' : '⚠ ') + line.text;
-      container.appendChild(p);
+    // Age / registration are hard eligibility gates for the buyer —
+    // a "Нет" answer overrides everything else, even though the
+    // calculator itself keeps working (see renderConditionsSection).
+    if (checks.buyerAge === false || checks.buyerResidency === false) {
+      appendEligibilityLine(container, false, 'Стандартные условия программы не соблюдены');
+      if (checks.buyerAge === false) {
+        appendEligibilityLine(container, false, 'Возраст покупателя должен быть не менее 21 года');
+      }
+      if (checks.buyerResidency === false) {
+        appendEligibilityLine(container, false, 'Обязательна прописка в Чеченской Республике');
+      }
+      return;
+    }
+
+    appendEligibilityLine(container, true, 'Доступна рассрочка');
+    appendEligibilityLine(container, true, 'Первоначальный взнос: ' + formatMoney(down));
+    appendEligibilityLine(container, true, 'Сумма в рассрочку: ' + formatMoney(price - down));
+
+    if (checks.buyerAge === true) appendEligibilityLine(container, true, 'Возраст — соответствует');
+    if (checks.buyerResidency === true) appendEligibilityLine(container, true, 'Прописка в Чеченской Республике');
+
+    appendEligibilityLine(container, !guarantor.required, guarantor.required ? 'Требуется поручитель' : 'Поручитель не требуется');
+  }
+
+  // Updates the "Условия рассрочки" accordion: the Да/Нет self-check
+  // button states, the buyer's negative-answer notes, and — only while
+  // a guarantor is actually required for the current price/down — the
+  // "Требования к поручителю" sub-block and its own pass/fail verdict.
+  function renderConditionsSection(guarantor, checks) {
+    ['buyerAge', 'buyerResidency', 'guarantorAge', 'guarantorResidency'].forEach(function (key) {
+      var group = els.conditionsPanel.querySelector('[data-check="' + key + '"]');
+      if (!group) return;
+      var value = checks[key];
+      group.querySelectorAll('.chip').forEach(function (btn) {
+        var isYes = btn.getAttribute('data-answer') === 'yes';
+        btn.classList.toggle('is-active', (value === true && isYes) || (value === false && !isYes));
+      });
     });
+
+    els.buyerAgeNote.hidden = checks.buyerAge !== false;
+    els.buyerResidencyNote.hidden = checks.buyerResidency !== false;
+
+    var guarantorRequired = !!(guarantor && guarantor.required);
+    els.guarantorRequirements.hidden = !guarantorRequired;
+    if (!guarantorRequired) return;
+
+    var reasons = [];
+    if (checks.guarantorAge === false) reasons.push('Поручитель должен быть старше 21 года.');
+    if (checks.guarantorResidency === false) reasons.push('Для поручителя обязательна прописка в Чеченской Республике.');
+
+    els.guarantorStatus.classList.remove('guarantor-status--ok', 'guarantor-status--warn');
+    if (reasons.length) {
+      els.guarantorStatus.hidden = false;
+      els.guarantorStatus.classList.add('guarantor-status--warn');
+      els.guarantorStatus.textContent = reasons.join(' ');
+    } else if (checks.guarantorAge === true && checks.guarantorResidency === true) {
+      els.guarantorStatus.hidden = false;
+      els.guarantorStatus.classList.add('guarantor-status--ok');
+      els.guarantorStatus.textContent = '✓ Условия поручителя соблюдены';
+    } else {
+      els.guarantorStatus.hidden = true;
+      els.guarantorStatus.textContent = '';
+    }
   }
 
   function render() {
@@ -435,6 +507,7 @@
       els.emptyState.hidden = false;
       state.months = null;
       lastSelectedResult = null;
+      renderConditionsSection(null, state.checks);
       return;
     }
 
@@ -461,11 +534,16 @@
     renderTermsList(terms, state.months);
     els.paymentsSection.hidden = false;
 
-    var selected = state.months !== null ? terms[state.months - MIN_MONTHS] : null;
-    renderSelectedDetail(selected);
+    var hasAvailableTerm = state.months !== null;
+    var guarantor = hasAvailableTerm ? getGuarantorStatus(price, down) : null;
 
-    renderEligibilitySummary(price, down, globalStatus, state.months !== null);
+    var selected = hasAvailableTerm ? terms[state.months - MIN_MONTHS] : null;
+    renderSelectedDetail(selected, guarantor);
+
+    renderEligibilitySummary(price, down, globalStatus, hasAvailableTerm, guarantor, state.checks);
     els.eligibilitySection.hidden = false;
+
+    renderConditionsSection(guarantor, state.checks);
   }
 
   /* ---------------- input wiring ---------------- */
@@ -534,16 +612,14 @@
     els.conditionsPanel.hidden = expanded;
   });
 
-  els.ageYes.addEventListener('click', function () {
-    els.ageYes.classList.add('is-active');
-    els.ageNo.classList.remove('is-active');
-    els.ageNote.hidden = true;
-  });
-
-  els.ageNo.addEventListener('click', function () {
-    els.ageNo.classList.add('is-active');
-    els.ageYes.classList.remove('is-active');
-    els.ageNote.hidden = false;
+  els.conditionsPanel.addEventListener('click', function (e) {
+    var btn = e.target.closest('.chip[data-answer]');
+    if (!btn) return;
+    var group = btn.closest('[data-check]');
+    if (!group) return;
+    var key = group.getAttribute('data-check');
+    state.checks[key] = btn.getAttribute('data-answer') === 'yes';
+    render();
   });
 
   /* ---------------- copy to clipboard ---------------- */

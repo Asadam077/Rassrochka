@@ -103,6 +103,8 @@
           <span class="result__hero-caption">в месяц</span>
         </div>
 
+        <p class="result__guarantor-status" id="resultGuarantorStatus" hidden></p>
+
         <p class="fixed-note">Торговая наценка фиксируется при оформлении и не изменяется в течение срока рассрочки.</p>
 
         <div class="summary-grid">
@@ -176,18 +178,53 @@
         </button>
         <div class="accordion__panel" id="conditionsPanel" hidden>
           <ul class="conditions-list">
-            <li>Возраст — от 21 года</li>
-            <li>Поручитель обязателен, если первоначальный взнос отсутствует</li>
-            <li>Поручитель обязателен, если остаток суммы (стоимость минус взнос) составляет 50 000 ₽ и более</li>
-            <li>Поручитель не требуется, если остаток суммы менее 50 000 ₽</li>
+            <li>Возраст покупателя — от 21 года</li>
+            <li>Обязательное условие — прописка в Чеченской Республике</li>
+            <li>Поручитель обязателен, если стоимость товара не превышает 50 000 ₽ и взнос не внесён</li>
+            <li>Поручитель не требуется, если стоимость товара не превышает 50 000 ₽ и внесён базовый первоначальный взнос (от 20%)</li>
+            <li>Поручитель обязателен при стоимости товара свыше 50 000 ₽ — независимо от размера первоначального взноса</li>
+            <li>К поручителю, если он требуется, предъявляются те же условия: возраст от 21 года и прописка в Чеченской Республике</li>
           </ul>
-          <div class="age-check">
-            <p class="age-check__question">Вам уже исполнился 21 год?</p>
-            <div class="age-check__buttons">
-              <button type="button" class="chip" id="ageYes">Да</button>
-              <button type="button" class="chip chip--outline" id="ageNo">Нет</button>
+
+          <div class="self-check-group">
+            <div class="self-check">
+              <p class="self-check__question">Вам уже исполнился 21 год?</p>
+              <div class="self-check__buttons" data-check="buyerAge">
+                <button type="button" class="chip" data-answer="yes">Да</button>
+                <button type="button" class="chip chip--outline" data-answer="no">Нет</button>
+              </div>
+              <p class="self-check__note" id="buyerAgeNote" hidden>Рассрочка доступна клиентам от 21 года</p>
             </div>
-            <p class="age-check__note" id="ageNote" hidden>Рассрочка доступна клиентам от 21 года</p>
+
+            <div class="self-check">
+              <p class="self-check__question">У вас есть постоянная прописка в Чеченской Республике?</p>
+              <div class="self-check__buttons" data-check="buyerResidency">
+                <button type="button" class="chip" data-answer="yes">Да</button>
+                <button type="button" class="chip chip--outline" data-answer="no">Нет</button>
+              </div>
+              <p class="self-check__note" id="buyerResidencyNote" hidden>Обязательное условие — прописка в Чеченской Республике</p>
+            </div>
+          </div>
+
+          <div class="guarantor-requirements" id="guarantorRequirements" hidden>
+            <h4 class="section-title section-title--sub">Требования к поручителю</h4>
+            <div class="self-check-group">
+              <div class="self-check">
+                <p class="self-check__question">Поручителю исполнился 21 год?</p>
+                <div class="self-check__buttons" data-check="guarantorAge">
+                  <button type="button" class="chip" data-answer="yes">Да</button>
+                  <button type="button" class="chip chip--outline" data-answer="no">Нет</button>
+                </div>
+              </div>
+              <div class="self-check">
+                <p class="self-check__question">У поручителя есть постоянная прописка в Чеченской Республике?</p>
+                <div class="self-check__buttons" data-check="guarantorResidency">
+                  <button type="button" class="chip" data-answer="yes">Да</button>
+                  <button type="button" class="chip chip--outline" data-answer="no">Нет</button>
+                </div>
+              </div>
+            </div>
+            <p class="guarantor-status" id="guarantorStatus" hidden></p>
           </div>
         </div>
       </div>

@@ -461,27 +461,52 @@ body{
   border-radius:50%;
   background:var(--gold);
 }
-.age-check{
+.self-check-group{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
   margin-top:16px;
   padding-top:16px;
   border-top:1px dashed var(--gray);
 }
-.age-check__question{
+.self-check__question{
   margin:0 0 10px;
   font-size:13.5px;
   font-weight:700;
   color:var(--navy);
 }
-.age-check__buttons{
+.self-check__buttons{
   display:flex;
   gap:8px;
 }
-.age-check__note{
-  margin:12px 0 0;
+.self-check__note{
+  margin:10px 0 0;
   font-size:13px;
   font-weight:600;
   color:var(--gold);
 }
+
+.guarantor-requirements{
+  margin-top:16px;
+  padding-top:16px;
+  border-top:1px dashed var(--gray);
+}
+.guarantor-status{
+  margin:14px 0 0;
+  font-size:13px;
+  font-weight:700;
+}
+.guarantor-status--ok{ color:var(--gold); }
+.guarantor-status--warn{ color:var(--gold); }
+
+.result__guarantor-status{
+  text-align:center;
+  margin:-10px 0 18px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--navy);
+}
+.result__guarantor-status--warn{ color:var(--gold); }
 
 /* ============ Accordion ============ */
 .accordion{ margin-bottom:16px; }
