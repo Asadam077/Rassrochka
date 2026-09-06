@@ -551,7 +551,7 @@
   function buildCopyText(r) {
     var lines = [
       'AS PAY',
-      'Рассрочка по нормам Шариата',
+      'Рассрочка по нормам ислама',
       '',
       'Стоимость товара: ' + formatMoney(r.price),
       'Первоначальный взнос: ' + formatMoney(r.down),
