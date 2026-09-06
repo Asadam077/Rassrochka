@@ -14,11 +14,13 @@
   var STANDARD_MIN_DOWN_PERCENT = 20; // minimum down payment, % of retail price (when a down payment is made)
   var ZERO_DOWN_MAX_PRICE = 50000;    // 0 ₽ down payment is only allowed at or below this retail price
   var ZERO_DOWN_MAX_MONTHS = 8;       // ...and only for terms up to this many months (3..8)
+  var GUARANTOR_REMAINDER_THRESHOLD = 50000; // guarantor rule threshold on (price - down)
+  var POPULAR_MONTHS = 7;             // optional "Популярный вариант" badge
 
   var state = {
     price: 0,
     down: 0,
-    months: 3
+    months: null // currently selected term in the payments table; null = nothing selectable yet
   };
 
   /* ---------------- helpers ---------------- */
@@ -70,62 +72,64 @@
   }
 
   /* ---------------- core calculation ---------------- */
-  // Order of checks:
-  // 1. retail price  2. term (months)
-  // 3. zero-down-payment mode? -> allowed only at retail price <= 50 000 ₽
-  //    AND term 3..8 months; otherwise show a notice, no calculation.
-  // 4. a non-zero down payment must be at least 20% of retail price;
+  // Order of checks, applied once per (price, down) pair, independent
+  // of any particular term:
+  // 1. retail price
+  // 2. zero-down-payment mode? -> allowed only at retail price <= 50 000 ₽
+  //    (the 3..8 month restriction is a per-term check, see evaluateTerm);
+  //    otherwise show a notice, no calculation for any term.
+  // 3. a non-zero down payment must be at least 20% of retail price;
   //    below that, show a notice with the exact minimum amount.
-  // 5. the down payment (0 ₽ included) is always subtracted from the
-  //    retail price first; the 6%-per-month markup is then computed
-  //    only on that remaining balance. Same single rule regardless of
-  //    how large the down payment is — no separate bracket above any
-  //    threshold.
-  // 6. the exact monthly payment is rounded UP to the nearest 100 ₽ —
-  //    that rounded amount is charged every month, all payments equal.
-  //    The trading markup is adjusted (not a separate final payment) to
-  //    absorb the rounding difference, so months * monthlyPayment is
-  //    always exactly the future-payments total.
-  function calculate() {
-    var price = state.price;
-    var down = Math.min(state.down, price);
-    var months = state.months;
-    var downPercent = price > 0 ? (down / price) * 100 : 0;
-
+  function getGlobalStatus(price, down) {
     var result = {
-      price: price,
-      down: down,
-      downPercent: downPercent,
-      months: months,
       isEmpty: price <= 0,
       isNotice: false,
       noticeText: '',
       noticeMinDownText: ''
     };
-
     if (result.isEmpty) return result;
 
+    var downPercent = (down / price) * 100;
+
     if (down === 0) {
-      var zeroDownValid = price <= ZERO_DOWN_MAX_PRICE && months <= ZERO_DOWN_MAX_MONTHS;
-      if (!zeroDownValid) {
+      if (price > ZERO_DOWN_MAX_PRICE) {
         result.isNotice = true;
         var minDownForZero = Math.ceil(price * STANDARD_MIN_DOWN_PERCENT / 100);
-        if (price > ZERO_DOWN_MAX_PRICE) {
-          result.noticeText = 'Для товаров стоимостью более ' + formatMoney(ZERO_DOWN_MAX_PRICE) + ' минимальный первоначальный взнос составляет 20%.';
-          result.noticeMinDownText = 'Минимальный взнос: ' + formatMoney(minDownForZero);
-        } else {
-          // Reachable only if months got out of sync with the UI's
-          // zero-down lock (defensive; the UI itself caps the term at 8).
-          result.noticeText = 'Без первоначального взноса рассрочка доступна на срок от ' + MIN_MONTHS + ' до ' + ZERO_DOWN_MAX_MONTHS + ' месяцев.';
-        }
-        return result;
+        result.noticeText = 'Для товаров стоимостью более ' + formatMoney(ZERO_DOWN_MAX_PRICE) + ' минимальный первоначальный взнос составляет 20%.';
+        result.noticeMinDownText = 'Минимальный взнос: ' + formatMoney(minDownForZero);
       }
     } else if (downPercent < STANDARD_MIN_DOWN_PERCENT) {
       result.isNotice = true;
       var minDown = Math.ceil(price * STANDARD_MIN_DOWN_PERCENT / 100);
       result.noticeText = 'Минимальный первоначальный взнос — 20%.';
       result.noticeMinDownText = 'Минимальный взнос: ' + formatMoney(minDown);
-      return result;
+    }
+
+    return result;
+  }
+
+  // Per-term evaluation used to build the 3..12 month payments table.
+  // Reuses the same formula for every term, unchanged:
+  // the down payment (0 ₽ included) is always subtracted from the
+  // retail price first; the 6%-per-month markup is then computed only
+  // on that remaining balance. The exact monthly payment is rounded UP
+  // to the nearest 100 ₽ — that rounded amount is charged every month,
+  // all payments equal. The trading markup absorbs the rounding
+  // difference (not a separate final payment), so
+  // monthlyPayment * months === finalInstallmentAmount always holds.
+  function evaluateTerm(price, down, months, globalStatus) {
+    var out = { months: months, available: false, reason: '' };
+
+    if (globalStatus.isEmpty) return out;
+
+    if (globalStatus.isNotice) {
+      out.reason = globalStatus.noticeText;
+      return out;
+    }
+
+    if (down === 0 && months > ZERO_DOWN_MAX_MONTHS) {
+      out.reason = 'Без взноса — доступно на срок до ' + ZERO_DOWN_MAX_MONTHS + ' мес.';
+      return out;
     }
 
     var baseMarkupRate = months * MARKUP_PER_MONTH; // percent
@@ -143,14 +147,49 @@
     // actually computed on.
     var finalMarkupPercent = price > 0 ? (finalMarkup / price) * 100 : 0;
 
-    result.baseMarkupRate = baseMarkupRate;
-    result.monthlyPayment = monthlyPayment;
-    result.finalInstallmentAmount = finalInstallmentAmount;
-    result.finalTotalPrice = finalTotalPrice;
-    result.finalMarkup = finalMarkup;
-    result.finalMarkupPercent = finalMarkupPercent;
+    out.available = true;
+    out.price = price;
+    out.down = down;
+    out.downPercent = price > 0 ? (down / price) * 100 : 0;
+    out.baseMarkupRate = baseMarkupRate;
+    out.monthlyPayment = monthlyPayment;
+    out.finalInstallmentAmount = finalInstallmentAmount;
+    out.finalTotalPrice = finalTotalPrice;
+    out.finalMarkup = finalMarkup;
+    out.finalMarkupPercent = finalMarkupPercent;
 
-    return result;
+    return out;
+  }
+
+  // New business rule, independent of the chosen term — based only on
+  // the down payment and the remainder (price - down):
+  // 1. no down payment (0 ₽)              -> guarantor always required
+  // 2. down payment made, remainder < 50 000 ₽ -> guarantor not required
+  // 3. down payment made, remainder >= 50 000 ₽ -> guarantor required
+  function getGuarantorStatus(price, down) {
+    if (price <= 0) return null;
+    var remainder = price - down;
+    if (down === 0) return { required: true, remainder: remainder };
+    if (remainder < GUARANTOR_REMAINDER_THRESHOLD) return { required: false, remainder: remainder };
+    return { required: true, remainder: remainder };
+  }
+
+  // Keeps the previously selected term if it is still available;
+  // otherwise prefers the popular term, then the first available one.
+  function pickDefaultMonths(terms) {
+    var byMonths = {};
+    terms.forEach(function (t) { byMonths[t.months] = t; });
+
+    if (state.months !== null && byMonths[state.months] && byMonths[state.months].available) {
+      return state.months;
+    }
+    if (byMonths[POPULAR_MONTHS] && byMonths[POPULAR_MONTHS].available) {
+      return POPULAR_MONTHS;
+    }
+    for (var i = 0; i < terms.length; i++) {
+      if (terms[i].available) return terms[i].months;
+    }
+    return null;
   }
 
   /* ---------------- rendering ---------------- */
@@ -162,16 +201,17 @@
     downQuick: document.getElementById('downQuick'),
     downNoteMin: document.getElementById('downNoteMin'),
     downNoteFree: document.getElementById('downNoteFree'),
-    monthsGrid: document.getElementById('monthsGrid'),
 
-    resultStandard: document.getElementById('resultStandard'),
     resultNotice: document.getElementById('resultNotice'),
     noticeText: document.getElementById('noticeText'),
     noticeMinDown: document.getElementById('noticeMinDown'),
     emptyState: document.getElementById('emptyState'),
 
-    monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
+    paymentsSection: document.getElementById('paymentsSection'),
+    termsList: document.getElementById('termsList'),
 
+    resultStandard: document.getElementById('resultStandard'),
+    monthlyPaymentValue: document.getElementById('monthlyPaymentValue'),
     sumPrice: document.getElementById('sumPrice'),
     sumDown: document.getElementById('sumDown'),
     sumMonths: document.getElementById('sumMonths'),
@@ -188,84 +228,133 @@
     copyButton: document.getElementById('copyButton'),
     copyButtonLabel: document.getElementById('copyButtonLabel'),
 
+    eligibilitySection: document.getElementById('eligibilitySection'),
+    eligibilitySummary: document.getElementById('eligibilitySummary'),
+
+    conditionsToggle: document.getElementById('conditionsToggle'),
+    conditionsPanel: document.getElementById('conditionsPanel'),
+    ageYes: document.getElementById('ageYes'),
+    ageNo: document.getElementById('ageNo'),
+    ageNote: document.getElementById('ageNote'),
+
     toast: document.getElementById('toast')
   };
 
-  var lastResult = null;
+  var lastSelectedResult = null;
+  var termRowEls = {};
 
-  function buildMonthButtons() {
+  function buildTermRows() {
     var frag = document.createDocumentFragment();
     for (var m = MIN_MONTHS; m <= MAX_MONTHS; m++) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'month-btn';
-      btn.textContent = m;
-      btn.setAttribute('data-months', m);
-      btn.setAttribute('aria-pressed', m === state.months ? 'true' : 'false');
-      if (m === state.months) btn.classList.add('is-active');
-      frag.appendChild(btn);
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'term-row';
+      row.setAttribute('data-months', m);
+      row.setAttribute('aria-pressed', 'false');
+
+      var monthly = document.createElement('div');
+      monthly.className = 'term-row__monthly';
+      var monthlyValue = document.createElement('span');
+      monthlyValue.className = 'term-row__monthly-value';
+      monthlyValue.textContent = '—';
+      var monthlyCaption = document.createElement('span');
+      monthlyCaption.className = 'term-row__monthly-caption';
+      monthlyCaption.textContent = '₽ / мес.';
+      monthly.appendChild(monthlyValue);
+      monthly.appendChild(monthlyCaption);
+
+      var meta = document.createElement('div');
+      meta.className = 'term-row__meta';
+
+      var monthsItem = document.createElement('div');
+      monthsItem.className = 'term-row__meta-item';
+      var monthsLabel = document.createElement('span');
+      monthsLabel.className = 'term-row__col-label';
+      monthsLabel.textContent = 'Срок';
+      var monthsValue = document.createElement('span');
+      monthsValue.className = 'term-row__months-value';
+      monthsValue.textContent = m + ' мес.';
+      var badge = document.createElement('span');
+      badge.className = 'term-row__badge';
+      badge.textContent = 'Популярный вариант';
+      badge.hidden = true;
+      monthsItem.appendChild(monthsLabel);
+      monthsItem.appendChild(monthsValue);
+      monthsItem.appendChild(badge);
+
+      var markupItem = document.createElement('div');
+      markupItem.className = 'term-row__meta-item';
+      var markupLabel = document.createElement('span');
+      markupLabel.className = 'term-row__col-label';
+      markupLabel.textContent = 'Наценка';
+      var markupValue = document.createElement('span');
+      markupValue.className = 'term-row__markup-value';
+      markupValue.textContent = '—';
+      markupItem.appendChild(markupLabel);
+      markupItem.appendChild(markupValue);
+
+      var totalItem = document.createElement('div');
+      totalItem.className = 'term-row__meta-item';
+      var totalLabel = document.createElement('span');
+      totalLabel.className = 'term-row__col-label';
+      totalLabel.textContent = 'Итоговая сумма';
+      var totalValue = document.createElement('span');
+      totalValue.className = 'term-row__total-value';
+      totalValue.textContent = '—';
+      totalItem.appendChild(totalLabel);
+      totalItem.appendChild(totalValue);
+
+      meta.appendChild(monthsItem);
+      meta.appendChild(markupItem);
+      meta.appendChild(totalItem);
+
+      var reason = document.createElement('div');
+      reason.className = 'term-row__unavailable-reason';
+
+      row.appendChild(monthly);
+      row.appendChild(meta);
+      row.appendChild(reason);
+
+      termRowEls[m] = row;
+      frag.appendChild(row);
     }
-    els.monthsGrid.appendChild(frag);
+    els.termsList.appendChild(frag);
   }
 
-  // True while the zero-down exception is in force: the term is capped
-  // at ZERO_DOWN_MAX_MONTHS and longer terms are disabled.
-  function isZeroDownLockActive() {
-    return state.down === 0 && state.price > 0 && state.price <= ZERO_DOWN_MAX_PRICE;
-  }
+  function renderTermsList(terms, selectedMonths) {
+    terms.forEach(function (t) {
+      var row = termRowEls[t.months];
+      var isSelected = t.available && t.months === selectedMonths;
+      row.classList.toggle('is-active', isSelected);
+      row.classList.toggle('is-unavailable', !t.available);
+      row.disabled = !t.available;
+      row.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
 
-  function render() {
-    var r = calculate();
-    lastResult = r;
+      var badgeEl = row.querySelector('.term-row__badge');
+      badgeEl.hidden = !(t.available && t.months === POPULAR_MONTHS);
 
-    var zeroDownLock = isZeroDownLockActive();
-    if (zeroDownLock && state.months > ZERO_DOWN_MAX_MONTHS) {
-      state.months = ZERO_DOWN_MAX_MONTHS;
-      r = calculate();
-      lastResult = r;
-    }
-
-    // month buttons: active state + zero-down lock (terms beyond
-    // ZERO_DOWN_MAX_MONTHS are disabled; 3..8 stay freely selectable)
-    var monthBtns = els.monthsGrid.querySelectorAll('.month-btn');
-    monthBtns.forEach(function (b) {
-      var m = parseInt(b.getAttribute('data-months'), 10);
-      var active = m === state.months;
-      b.classList.toggle('is-active', active);
-      b.setAttribute('aria-pressed', active ? 'true' : 'false');
-      b.disabled = zeroDownLock && m > ZERO_DOWN_MAX_MONTHS;
-    });
-
-    var downPct = r.price > 0 ? Math.round(r.downPercent) : 0;
-    els.downPercentHint.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
-
-    els.downNoteMin.hidden = r.price <= 0 || zeroDownLock;
-    els.downNoteFree.hidden = !(r.price > 0 && r.price <= ZERO_DOWN_MAX_PRICE);
-
-    // Reset all result sections, then reveal exactly the one that applies.
-    els.emptyState.hidden = true;
-    els.resultNotice.hidden = true;
-    els.resultStandard.hidden = true;
-
-    if (r.isEmpty) {
-      els.emptyState.hidden = false;
-      return;
-    }
-
-    if (r.isNotice) {
-      els.noticeText.textContent = r.noticeText;
-      if (r.noticeMinDownText) {
-        els.noticeMinDown.hidden = false;
-        els.noticeMinDown.textContent = r.noticeMinDownText;
+      var reasonEl = row.querySelector('.term-row__unavailable-reason');
+      if (t.available) {
+        row.querySelector('.term-row__markup-value').textContent = formatPercent(t.finalMarkupPercent);
+        row.querySelector('.term-row__total-value').textContent = formatMoney(t.finalTotalPrice);
+        row.querySelector('.term-row__monthly-value').textContent = formatMoney(t.monthlyPayment).replace(' ₽', '');
+        reasonEl.textContent = '';
       } else {
-        els.noticeMinDown.hidden = true;
+        reasonEl.textContent = 'Недоступно — ' + t.reason;
       }
-      els.resultNotice.hidden = false;
+    });
+  }
+
+  function renderSelectedDetail(r) {
+    lastSelectedResult = r;
+    if (!r) {
+      els.resultStandard.hidden = true;
       return;
     }
+    els.resultStandard.hidden = false;
 
+    var downPct = Math.round(r.downPercent);
     els.monthlyPaymentValue.textContent = formatMoney(r.monthlyPayment);
-
     els.sumPrice.textContent = formatMoney(r.price);
     els.sumDown.textContent = formatMoney(r.down) + ' · ' + downPct + '%';
     els.sumMonths.textContent = formatMonthsWord(r.months);
@@ -276,7 +365,6 @@
     els.sumTotal.textContent = formatMoney(r.finalTotalPrice);
 
     renderSchedule(r);
-    els.resultStandard.hidden = false;
   }
 
   function renderSchedule(r) {
@@ -291,6 +379,93 @@
       li.appendChild(valueLabel);
       els.scheduleList.appendChild(li);
     }
+  }
+
+  function renderEligibilitySummary(price, down, globalStatus, hasAvailableTerm) {
+    var container = els.eligibilitySummary;
+    container.innerHTML = '';
+
+    if (globalStatus.isNotice || !hasAvailableTerm) {
+      var unavailable = document.createElement('p');
+      unavailable.className = 'eligibility__line eligibility__line--warn';
+      unavailable.textContent = '⚠ По указанным параметрам стандартные условия рассрочки недоступны';
+      container.appendChild(unavailable);
+
+      if (globalStatus.noticeText) {
+        var reasonP = document.createElement('p');
+        reasonP.className = 'eligibility__reason';
+        reasonP.textContent = globalStatus.noticeText;
+        container.appendChild(reasonP);
+      }
+      return;
+    }
+
+    var guarantor = getGuarantorStatus(price, down);
+    var lines = [
+      { ok: true, text: 'Доступна рассрочка' },
+      { ok: true, text: 'Первоначальный взнос: ' + formatMoney(down) },
+      { ok: true, text: 'Сумма в рассрочку: ' + formatMoney(price - down) },
+      { ok: !guarantor.required, text: guarantor.required ? 'Требуется поручитель' : 'Поручитель не требуется' }
+    ];
+    lines.forEach(function (line) {
+      var p = document.createElement('p');
+      p.className = 'eligibility__line' + (line.ok ? '' : ' eligibility__line--warn');
+      p.textContent = (line.ok ? '✓ ' : '⚠ ') + line.text;
+      container.appendChild(p);
+    });
+  }
+
+  function render() {
+    var price = state.price;
+    var down = Math.min(state.down, price);
+    var globalStatus = getGlobalStatus(price, down);
+
+    var downPct = price > 0 ? Math.round((down / price) * 100) : 0;
+    els.downPercentHint.textContent = formatMoney(down) + ' · ' + downPct + '%';
+    els.downNoteMin.hidden = price <= 0 || (down === 0 && price <= ZERO_DOWN_MAX_PRICE);
+    els.downNoteFree.hidden = !(price > 0 && price <= ZERO_DOWN_MAX_PRICE);
+
+    // Reset all result sections, then reveal exactly the ones that apply.
+    els.emptyState.hidden = true;
+    els.resultNotice.hidden = true;
+    els.paymentsSection.hidden = true;
+    els.eligibilitySection.hidden = true;
+
+    if (globalStatus.isEmpty) {
+      els.emptyState.hidden = false;
+      state.months = null;
+      lastSelectedResult = null;
+      return;
+    }
+
+    if (globalStatus.isNotice) {
+      els.noticeText.textContent = globalStatus.noticeText;
+      if (globalStatus.noticeMinDownText) {
+        els.noticeMinDown.hidden = false;
+        els.noticeMinDown.textContent = globalStatus.noticeMinDownText;
+      } else {
+        els.noticeMinDown.hidden = true;
+      }
+      els.resultNotice.hidden = false;
+    }
+
+    // Build the full 3..12 month table regardless of the notice above,
+    // so unavailable terms are always shown (muted) with a reason,
+    // never silently hidden.
+    var terms = [];
+    for (var m = MIN_MONTHS; m <= MAX_MONTHS; m++) {
+      terms.push(evaluateTerm(price, down, m, globalStatus));
+    }
+
+    state.months = pickDefaultMonths(terms);
+    renderTermsList(terms, state.months);
+    els.paymentsSection.hidden = false;
+
+    var selected = state.months !== null ? terms[state.months - MIN_MONTHS] : null;
+    renderSelectedDetail(selected);
+
+    renderEligibilitySummary(price, down, globalStatus, state.months !== null);
+    els.eligibilitySection.hidden = false;
   }
 
   /* ---------------- input wiring ---------------- */
@@ -340,10 +515,10 @@
     render();
   });
 
-  els.monthsGrid.addEventListener('click', function (e) {
-    var btn = e.target.closest('.month-btn');
-    if (!btn || btn.disabled) return;
-    state.months = parseInt(btn.getAttribute('data-months'), 10);
+  els.termsList.addEventListener('click', function (e) {
+    var row = e.target.closest('.term-row');
+    if (!row || row.disabled) return;
+    state.months = parseInt(row.getAttribute('data-months'), 10);
     render();
   });
 
@@ -351,6 +526,24 @@
     var expanded = this.getAttribute('aria-expanded') === 'true';
     this.setAttribute('aria-expanded', String(!expanded));
     els.schedulePanel.hidden = expanded;
+  });
+
+  els.conditionsToggle.addEventListener('click', function () {
+    var expanded = this.getAttribute('aria-expanded') === 'true';
+    this.setAttribute('aria-expanded', String(!expanded));
+    els.conditionsPanel.hidden = expanded;
+  });
+
+  els.ageYes.addEventListener('click', function () {
+    els.ageYes.classList.add('is-active');
+    els.ageNo.classList.remove('is-active');
+    els.ageNote.hidden = true;
+  });
+
+  els.ageNo.addEventListener('click', function () {
+    els.ageNo.classList.add('is-active');
+    els.ageYes.classList.remove('is-active');
+    els.ageNote.hidden = false;
   });
 
   /* ---------------- copy to clipboard ---------------- */
@@ -387,8 +580,8 @@
   }
 
   els.copyButton.addEventListener('click', function () {
-    if (!lastResult || lastResult.isEmpty || lastResult.isNotice) return;
-    var text = buildCopyText(lastResult);
+    if (!lastSelectedResult) return;
+    var text = buildCopyText(lastSelectedResult);
 
     function done(ok) {
       showToast(ok ? 'Расчёт скопирован' : 'Не удалось скопировать');
@@ -424,7 +617,7 @@
 
   /* ---------------- init ---------------- */
 
-  buildMonthButtons();
+  buildTermRows();
   setActiveChip(0);
   render();
 

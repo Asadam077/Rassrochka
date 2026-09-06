@@ -178,47 +178,6 @@ body{
 .field__note--positive{ color:var(--gold); }
 .field__note + .field__note{ margin-top:4px; }
 
-/* ============ Months grid ============ */
-.months-grid{
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:8px;
-}
-@media (max-width:380px){
-  .months-grid{ grid-template-columns:repeat(4,1fr); }
-}
-.month-btn{
-  border:1.5px solid var(--gray);
-  background:var(--white);
-  color:var(--navy);
-  font-family:inherit;
-  font-size:15px;
-  font-weight:700;
-  padding:12px 0;
-  border-radius:var(--radius-sm);
-  cursor:pointer;
-  transition:all .16s var(--ease);
-  -webkit-tap-highlight-color:transparent;
-}
-.month-btn:hover{ border-color:var(--gold-soft); }
-.month-btn:active{ transform:scale(0.94); }
-.month-btn.is-active{
-  background:var(--navy);
-  border-color:var(--navy);
-  color:var(--gold-soft);
-  box-shadow:0 4px 14px -4px rgba(23,36,58,0.4);
-}
-.month-btn:disabled{
-  cursor:not-allowed;
-  pointer-events:none;
-  opacity:0.4;
-  background:var(--white);
-  border-color:var(--gray);
-  color:var(--text-faint);
-  transform:none;
-  box-shadow:none;
-}
-
 .divider{
   height:1px;
   background:var(--gray);
@@ -226,6 +185,11 @@ body{
 }
 
 /* ============ Result: hero ============ */
+.payments-section .result{
+  margin-top:22px;
+  padding-top:20px;
+  border-top:1px dashed var(--gray);
+}
 .result__hero{
   text-align:center;
   padding-bottom:22px;
@@ -300,6 +264,223 @@ body{
 .summary-totals .summary-item__value{ font-size:17px; }
 @media (max-width:360px){
   .summary-totals{ grid-template-columns:1fr; }
+}
+
+/* ============ Section titles ============ */
+.section-title{
+  margin:0 0 14px;
+  font-size:13px;
+  font-weight:700;
+  color:var(--navy);
+}
+.section-title--sub{
+  font-size:12.5px;
+  color:var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:0.4px;
+  margin-bottom:10px;
+}
+
+/* ============ Payments table (3–12 months) ============ */
+.payments-section{ margin-bottom:24px; }
+.terms-list__header{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  padding:0 18px 8px;
+}
+.terms-list__header span{
+  font-size:10.5px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.4px;
+  color:var(--text-faint);
+}
+.terms-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.term-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  width:100%;
+  text-align:left;
+  border:1.5px solid var(--gray);
+  background:var(--white);
+  border-radius:var(--radius-md);
+  padding:14px 18px;
+  font-family:inherit;
+  cursor:pointer;
+  transition:border-color .16s var(--ease), background .16s var(--ease), box-shadow .16s var(--ease);
+  -webkit-tap-highlight-color:transparent;
+}
+.term-row:hover{ border-color:var(--gold-soft); }
+.term-row:active{ transform:scale(0.995); }
+.term-row.is-active{
+  border-color:var(--gold);
+  background:var(--gold-wash);
+  box-shadow:0 4px 14px -6px rgba(210,161,92,0.45);
+}
+.term-row.is-unavailable{
+  cursor:default;
+  opacity:0.55;
+  background:var(--bg);
+}
+.term-row.is-unavailable:hover{ border-color:var(--gray); }
+.term-row:disabled{ pointer-events:none; }
+
+.term-row__meta{
+  order:1;
+  display:flex;
+  align-items:center;
+  gap:22px;
+  flex:1;
+  min-width:0;
+}
+.term-row__meta-item{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+}
+.term-row__col-label{ display:none; }
+.term-row__months-value{ font-size:15px; font-weight:700; color:var(--navy); white-space:nowrap; }
+.term-row__markup-value,
+.term-row__total-value{ font-size:14px; font-weight:700; color:var(--navy); white-space:nowrap; }
+.term-row__badge{
+  display:block;
+  margin-top:4px;
+  font-size:9.5px;
+  font-weight:700;
+  color:var(--gold);
+  background:var(--gold-wash);
+  border-radius:999px;
+  padding:2px 8px;
+  width:max-content;
+  white-space:nowrap;
+}
+
+.term-row__monthly{
+  order:2;
+  flex:0 0 auto;
+  display:flex;
+  align-items:baseline;
+  gap:4px;
+  white-space:nowrap;
+}
+.term-row__monthly-value{ font-size:19px; font-weight:800; color:var(--navy); }
+.term-row__monthly-caption{ font-size:11.5px; font-weight:600; color:var(--text-faint); }
+
+.term-row__unavailable-reason{
+  display:none;
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--text-muted);
+}
+.term-row.is-unavailable .term-row__meta-item:not(:first-child),
+.term-row.is-unavailable .term-row__monthly{ display:none; }
+.term-row.is-unavailable .term-row__unavailable-reason{ display:block; }
+
+@media (max-width:600px){
+  .terms-list__header{ display:none; }
+  .term-row{
+    flex-direction:column;
+    align-items:stretch;
+    gap:10px;
+  }
+  .term-row__monthly{ order:-1; justify-content:flex-start; }
+  .term-row__monthly-value{ font-size:23px; }
+  .term-row__meta{ order:0; flex-wrap:wrap; row-gap:8px; gap:18px; }
+  .term-row__col-label{
+    display:block;
+    font-size:10px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.3px;
+    color:var(--text-faint);
+  }
+  .term-row.is-unavailable .term-row__unavailable-reason{ margin-top:-2px; }
+}
+
+/* ============ Eligibility summary ("По вашим параметрам") ============ */
+.eligibility-section{ margin-bottom:24px; }
+.eligibility{
+  background:var(--bg);
+  border:1.5px solid var(--gray);
+  border-radius:var(--radius-md);
+  padding:16px 18px;
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+}
+.eligibility__line{
+  margin:0;
+  font-size:14px;
+  font-weight:600;
+  color:var(--navy);
+}
+.eligibility__line--warn{ color:var(--gold); }
+.eligibility__reason{
+  margin:-2px 0 0;
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--text-muted);
+}
+
+/* ============ Terms & conditions ============ */
+.terms-conditions{ margin-bottom:22px; }
+.conditions-list{
+  list-style:none;
+  margin:10px 0 0;
+  padding:14px 16px;
+  background:var(--bg);
+  border-radius:var(--radius-sm);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.conditions-list li{
+  position:relative;
+  padding-left:16px;
+  font-size:13.5px;
+  font-weight:600;
+  line-height:1.4;
+  color:var(--navy);
+}
+.conditions-list li::before{
+  content:'';
+  position:absolute;
+  left:0;
+  top:7px;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:var(--gold);
+}
+.age-check{
+  margin-top:16px;
+  padding-top:16px;
+  border-top:1px dashed var(--gray);
+}
+.age-check__question{
+  margin:0 0 10px;
+  font-size:13.5px;
+  font-weight:700;
+  color:var(--navy);
+}
+.age-check__buttons{
+  display:flex;
+  gap:8px;
+}
+.age-check__note{
+  margin:12px 0 0;
+  font-size:13px;
+  font-weight:600;
+  color:var(--gold);
 }
 
 /* ============ Accordion ============ */
