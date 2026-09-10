@@ -625,19 +625,19 @@
   /* ---------------- copy to clipboard ---------------- */
 
   function buildCopyText(r) {
+    var downPercent = Math.round(r.downPercent);
     var lines = [
-      'AS PAY',
-      'Рассрочка по нормам ислама',
+      'AS PAY — рассрочка по нормам ислама',
       '',
-      'Стоимость товара: ' + formatMoney(r.price),
-      'Первоначальный взнос: ' + formatMoney(r.down),
+      'Товар: ' + formatMoney(r.price),
+      'Взнос: ' + formatMoney(r.down) + ' (' + downPercent + '%)',
       'Срок: ' + formatMonthsWord(r.months),
-      'Торговая наценка: ' + formatMoney(r.finalMarkup),
-      'Ежемесячный платёж: ' + formatMoney(r.monthlyPayment),
-      'Количество платежей: ' + r.months,
-      'Итоговая стоимость: ' + formatMoney(r.finalTotalPrice),
       '',
-      'Стоимость фиксируется при оформлении рассрочки.'
+      'Платёж: ' + formatMoney(r.monthlyPayment) + ' / мес.',
+      'Наценка: ' + formatMoney(r.finalMarkup),
+      'Итого: ' + formatMoney(r.finalTotalPrice),
+      '',
+      'Стоимость фиксируется при оформлении.'
     ];
     return lines.join('\n');
   }
