@@ -1,7 +1,6 @@
 /* ============ AS PAY — design tokens ============ */
 :root{
   --navy: #17243A;
-  --navy-2: #223252;
   --gold: #D2A15C;
   --gold-soft: #E9CFA3;
   --gold-wash: #F7EEE0;
@@ -495,9 +494,8 @@ body{
   margin:14px 0 0;
   font-size:13px;
   font-weight:700;
+  color:var(--gold);
 }
-.guarantor-status--ok{ color:var(--gold); }
-.guarantor-status--warn{ color:var(--gold); }
 
 .result__guarantor-status{
   text-align:center;
@@ -567,15 +565,6 @@ body{
   -webkit-tap-highlight-color:transparent;
 }
 .btn:active{ transform:scale(0.98); }
-.btn--gold{
-  background:linear-gradient(135deg,var(--gold),#C08F49);
-  color:var(--navy);
-  box-shadow:0 8px 20px -8px rgba(210,161,92,0.6);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:9px;
-}
 .btn--ghost{
   background:var(--white);
   color:var(--navy);

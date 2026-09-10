@@ -158,7 +158,6 @@
     out.price = price;
     out.down = down;
     out.downPercent = price > 0 ? (down / price) * 100 : 0;
-    out.baseMarkupRate = baseMarkupRate;
     out.monthlyPayment = monthlyPayment;
     out.finalInstallmentAmount = finalInstallmentAmount;
     out.finalTotalPrice = finalTotalPrice;
@@ -227,7 +226,6 @@
     sumMonths: document.getElementById('sumMonths'),
     sumMarkupPercent: document.getElementById('sumMarkupPercent'),
     sumMarkupAmount: document.getElementById('sumMarkupAmount'),
-    sumPaymentsCount: document.getElementById('sumPaymentsCount'),
     sumInstallmentAmount: document.getElementById('sumInstallmentAmount'),
     sumTotal: document.getElementById('sumTotal'),
 
@@ -379,7 +377,6 @@
     els.sumMonths.textContent = formatMonthsWord(r.months);
     els.sumMarkupPercent.textContent = formatPercent(r.finalMarkupPercent);
     els.sumMarkupAmount.textContent = formatMoney(r.finalMarkup);
-    els.sumPaymentsCount.textContent = r.months;
     els.sumInstallmentAmount.textContent = formatMoney(r.finalInstallmentAmount);
     els.sumTotal.textContent = formatMoney(r.finalTotalPrice);
 
@@ -472,14 +469,11 @@
     if (checks.guarantorAge === false) reasons.push('Поручитель должен быть старше 21 года.');
     if (checks.guarantorResidency === false) reasons.push('Для поручителя обязательна прописка в Чеченской Республике.');
 
-    els.guarantorStatus.classList.remove('guarantor-status--ok', 'guarantor-status--warn');
     if (reasons.length) {
       els.guarantorStatus.hidden = false;
-      els.guarantorStatus.classList.add('guarantor-status--warn');
       els.guarantorStatus.textContent = reasons.join(' ');
     } else if (checks.guarantorAge === true && checks.guarantorResidency === true) {
       els.guarantorStatus.hidden = false;
-      els.guarantorStatus.classList.add('guarantor-status--ok');
       els.guarantorStatus.textContent = '✓ Условия поручителя соблюдены';
     } else {
       els.guarantorStatus.hidden = true;
